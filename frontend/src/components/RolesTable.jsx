@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Table, Button, Modal, Form, Checkbox, message, Spin, Typography, Row, Col, Tag } from 'antd';
+import { Table, Button, Modal, Form, Checkbox, message, Spin, Typography, Row, Col, Tag, Input, Select, Popconfirm, Space } from 'antd';
 import axios from 'axios';
 
 const { Title } = Typography;
@@ -9,9 +9,11 @@ function RolesTable() {
   const [allPermissions, setAllPermissions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isModalVisible, setIsModalVisible] = useState(false);
+  const [isRoleModalVisible, setIsRoleModalVisible] = useState(false);
   const [editingRole, setEditingRole] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [form] = Form.useForm();
+  const [roleForm] = Form.useForm();
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -24,8 +26,8 @@ function RolesTable() {
 
     try {
       const [rolesRes, permissionsRes] = await Promise.all([
-        axios.get('/api/roles/', { headers: { Authorization: `Bearer ${token}` } }),
-        axios.get('/api/permissions/', { headers: { Authorization: `Bearer ${token}` } })
+        axios.get('/api/v1/roles/', { headers: { Authorization: `Bearer ${token}` } }),
+        axios.get('/api/v1/permissions/', { headers: { Authorization: `Bearer ${token}` } })
       ]);
       setRoles(rolesRes.data);
       setAllPermissions(permissionsRes.data);
@@ -56,12 +58,24 @@ function RolesTable() {
     }, {});
   }, [allPermissions]);
 
+  const handleAddRole = () => {
+    setEditingRole(null);
+    roleForm.resetFields();
+    setIsRoleModalVisible(true);
+  };
+
   const handleEditPermissions = (role) => {
     setEditingRole(role);
     form.setFieldsValue({
       permission_codes: role.permissions.map(p => p.code),
     });
     setIsModalVisible(true);
+  };
+
+  const handleEditRole = (role) => {
+    setEditingRole(role);
+    roleForm.setFieldsValue(role);
+    setIsRoleModalVisible(true);
   };
 
   const handleModalCancel = () => {
@@ -71,13 +85,12 @@ function RolesTable() {
   };
 
   const handleFormFinish = async (values) => {
-    if (!editingRole) return;
     setIsSubmitting(true);
     const token = localStorage.getItem('access_token');
 
     try {
       await axios.put(
-        `/api/roles/${editingRole.id}`,
+        `/api/v1/roles/${editingRole.id}`,
         { permission_codes: values.permission_codes },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -89,6 +102,43 @@ function RolesTable() {
       console.error('Error updating role permissions:', error);
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleRoleFormFinish = async (values) => {
+    setIsSubmitting(true);
+    const token = localStorage.getItem('access_token');
+
+    try {
+      if (editingRole) {
+        await axios.put(`/api/v1/roles/${editingRole.id}`, values, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+      } else {
+        await axios.post('/api/v1/roles/', values, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+      }
+      message.success(`Role ${editingRole ? 'updated' : 'created'} successfully.`);
+      setIsRoleModalVisible(false);
+      fetchData();
+    } catch (error) {
+      message.error(error.response?.data?.detail || `Failed to ${editingRole ? 'update' : 'create'} role.`);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDeleteRole = async (roleId) => {
+    const token = localStorage.getItem('access_token');
+    try {
+      await axios.delete(`/api/v1/roles/${roleId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      message.success('Role deleted successfully');
+      setRoles(currentRoles => currentRoles.filter(role => role.id !== roleId));
+    } catch (error) {
+      message.error('Failed to delete role.');
     }
   };
 
@@ -112,22 +162,30 @@ function RolesTable() {
       title: 'Action',
       key: 'action',
       render: (_, record) => (
-        <Button onClick={() => handleEditPermissions(record)}>
-          Edit Permissions
-        </Button>
+        <Space>
+          <Button size="small" onClick={() => handleEditRole(record)}>
+            Edit Role
+          </Button>
+          <Button size="small" onClick={() => handleEditPermissions(record)}>
+            Permissions
+          </Button>
+          <Popconfirm title="Are you sure you want to delete this role?" onConfirm={() => handleDeleteRole(record.id)}>
+            <Button size="small" danger>Delete</Button>
+          </Popconfirm>
+        </Space>
       ),
     },
   ];
 
   return (
     <div>
-      <Title level={2}>Roles & Permissions Management</Title>
+      <Title level={2}>Role Management</Title>
+      <Button type="primary" onClick={handleAddRole} style={{ marginBottom: 16 }}>Add Role</Button>
       <Table
         dataSource={roles}
         columns={columns}
         rowKey="id"
         loading={loading}
-        style={{ marginTop: 20 }}
       />
       {editingRole && (
         <Modal
@@ -145,7 +203,7 @@ function RolesTable() {
           width={800}
           destroyOnClose
         >
-          <Form form={form} layout="vertical" onFinish={handleFormFinish}>
+          <Form form={form} layout="vertical" onFinish={handleFormFinish} initialValues={{ permission_codes: editingRole.permissions.map(p => p.code) }}>
             <Form.Item name="permission_codes">
               <Checkbox.Group style={{ width: '100%' }}>
                 {Object.entries(groupedPermissions).map(([module, perms]) => (
@@ -167,6 +225,34 @@ function RolesTable() {
           </Form>
         </Modal>
       )}
+      <Modal
+        title={editingRole ? 'Edit Role' : 'Add Role'}
+        open={isRoleModalVisible}
+        onCancel={() => setIsRoleModalVisible(false)}
+        footer={null}
+        destroyOnClose
+      >
+        <Form form={roleForm} layout="vertical" onFinish={handleRoleFormFinish}>
+          <Form.Item name="name" label="Role Name" rules={[{ required: true }]}>
+            <Input />
+          </Form.Item>
+          <Form.Item name="description" label="Description">
+            <Input.TextArea />
+          </Form.Item>
+          <Form.Item name="scope" label="Scope" rules={[{ required: true }]} initialValue="system">
+            <Select>
+              <Select.Option value="system">System</Select.Option>
+              <Select.Option value="customer">Customer</Select.Option>
+              <Select.Option value="reseller">Reseller</Select.Option>
+            </Select>
+          </Form.Item>
+          <Form.Item>
+            <Button type="primary" htmlType="submit" loading={isSubmitting} style={{ width: '100%' }}>
+              {editingRole ? 'Save Role' : 'Create Role'}
+            </Button>
+          </Form.Item>
+        </Form>
+      </Modal>
     </div>
   );
 }

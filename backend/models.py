@@ -10,7 +10,9 @@ from sqlalchemy import (
     Table,
     Enum,
     BigInteger,
-    UniqueConstraint
+    DECIMAL,
+    UniqueConstraint,
+    Text
 )
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.dialects.postgresql import ARRAY, CITEXT
@@ -45,20 +47,69 @@ class User(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
     # Relationships
-    administrator_profile = relationship("Administrator", back_populates="user", uselist=False)
-    user_profile = relationship("UserProfile", back_populates="user", uselist=False)
-    user_roles = relationship("UserRole", back_populates="user")
+    administrator_profile = relationship("Administrator", back_populates="user", uselist=False, cascade="all, delete-orphan")
+    user_profile = relationship("UserProfile", back_populates="user", uselist=False, cascade="all, delete-orphan")
+    user_roles = relationship("UserRole", back_populates="user", cascade="all, delete-orphan")
 
 class Customer(Base):
     __tablename__ = "customers" # Existing table, adding relationship
 
     id = Column(BigInteger, primary_key=True, index=True)
     name = Column(String, nullable=False)
-    # ... other existing columns ...
-    created_at = Column(DateTime(timezone=True), server_default=func.now()) # Assuming this exists
+    login = Column(CITEXT, unique=True)
+    status = Column(String(20), default='active', index=True)
+    partner_id = Column(Integer, ForeignKey("partners.id"), nullable=False)
+    location_id = Column(Integer, ForeignKey("locations.id"), nullable=False)
+    parent_id = Column(BigInteger, ForeignKey("customers.id"))
+    email = Column(CITEXT, index=True)
+    billing_email = Column(CITEXT)
+    phone = Column(String(50))
+    category = Column(String(20), default='person')
+    street_1 = Column(String(255))
+    zip_code = Column(String(20))
+    city = Column(String(100))
+    billing_type = Column(String(20), default='recurring')
+    custom_fields = Column(JSON, default={})
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
-    user_profiles = relationship("UserProfile", back_populates="customer")
-    user_roles = relationship("UserRole", back_populates="customer")
+    user_profiles = relationship("UserProfile", back_populates="customer", cascade="all, delete-orphan")
+    user_roles = relationship("UserRole", back_populates="customer", cascade="all, delete-orphan")
+    partner = relationship("Partner", back_populates="customers")
+    location = relationship("Location")
+    billing_config = relationship("CustomerBilling", back_populates="customer", uselist=False, cascade="all, delete-orphan")
+    services = relationship("InternetService", back_populates="customer", cascade="all, delete-orphan")
+    invoices = relationship("Invoice", back_populates="customer", cascade="all, delete-orphan")
+    payments = relationship("Payment", back_populates="customer", cascade="all, delete-orphan")
+    transactions = relationship("Transaction", back_populates="customer", cascade="all, delete-orphan")
+
+class CustomerBilling(Base):
+    __tablename__ = "customer_billing"
+
+    customer_id = Column(BigInteger, ForeignKey("customers.id"), primary_key=True)
+    enabled = Column(Boolean, default=True)
+    billing_date = Column(Integer, default=1)
+    grace_period = Column(Integer, default=3)
+
+    customer = relationship("Customer", back_populates="billing_config")
+
+class Location(Base):
+    __tablename__ = "locations"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(255), nullable=False)
+    address_line_1 = Column(String(255))
+    address_line_2 = Column(String(255))
+    city = Column(String(100))
+    state_province = Column(String(100))
+    postal_code = Column(String(20))
+    country = Column(String(100), default='Nigeria')
+    latitude = Column(DECIMAL(10, 8))
+    longitude = Column(DECIMAL(11, 8))
+    timezone = Column(String(100), default='Africa/Lagos')
+    custom_fields = Column(JSON, default={})
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
 class Reseller(Base):
     __tablename__ = "resellers" # Existing table, adding relationship
@@ -93,8 +144,8 @@ class Role(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     parent_role = relationship("Role", remote_side=[id])
-    role_permissions = relationship("RolePermission", back_populates="role")
-    user_roles = relationship("UserRole", back_populates="role")
+    role_permissions = relationship("RolePermission", back_populates="role", cascade="all, delete-orphan")
+    user_roles = relationship("UserRole", back_populates="role", cascade="all, delete-orphan")
 
     @hybrid_property
     def permissions(self):
@@ -193,6 +244,7 @@ class Partner(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
     administrators = relationship("Administrator", back_populates="partner")
+    customers = relationship("Customer", back_populates="partner")
 
 
 class Administrator(Base):
@@ -249,3 +301,108 @@ class FrameworkRole(Base): # Renamed from Role
         secondary=framework_role_permissions_table,
         backref="framework_roles"
     )
+
+# --- Tariffs (Service Plans) ---
+class InternetTariff(Base):
+    __tablename__ = "internet_tariffs"
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String, unique=True, nullable=False)
+    price = Column(DECIMAL(10, 4), default=0)
+    speed_download = Column(Integer, nullable=False)
+    speed_upload = Column(Integer, nullable=False)
+    # Simplified for now, can be expanded
+
+# --- Services (Customer Subscriptions) ---
+class InternetService(Base):
+    __tablename__ = "internet_services"
+    id = Column(Integer, primary_key=True, index=True)
+    customer_id = Column(Integer, ForeignKey("customers.id"), nullable=False)
+    tariff_id = Column(Integer, ForeignKey("internet_tariffs.id"), nullable=False)
+    status = Column(String(20), default='active')
+    description = Column(Text, nullable=False)
+    start_date = Column(DateTime(timezone=True), server_default=func.now())
+    end_date = Column(DateTime(timezone=True))
+    login = Column(String(255), nullable=False)
+    password = Column(String(255))
+    ipv4 = Column(String) # Using String for INET for simplicity in this context
+    mac = Column(String(100))
+
+    customer = relationship("Customer", back_populates="services")
+    tariff = relationship("InternetTariff")
+
+# --- Billing ---
+class TransactionCategory(Base):
+    __tablename__ = "transaction_categories"
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=False)
+
+class Tax(Base):
+    __tablename__ = "taxes"
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=False)
+    rate = Column(DECIMAL(5, 4), nullable=False)
+    archived = Column(Boolean, default=False)
+
+class Invoice(Base):
+    __tablename__ = "invoices"
+    id = Column(Integer, primary_key=True, index=True)
+    customer_id = Column(Integer, ForeignKey("customers.id"), nullable=False)
+    number = Column(String(50), unique=True, nullable=False)
+    date_created = Column(DateTime(timezone=True), server_default=func.now())
+    date_till = Column(DateTime(timezone=True))
+    status = Column(String(20), default='not_paid')
+    total = Column(DECIMAL(10, 4), default=0)
+    due = Column(DECIMAL(10, 4), default=0)
+
+    customer = relationship("Customer", back_populates="invoices")
+    items = relationship("InvoiceItem", back_populates="invoice", cascade="all, delete-orphan")
+    payments = relationship("Payment", back_populates="invoice")
+
+class InvoiceItem(Base):
+    __tablename__ = "invoice_items"
+    id = Column(Integer, primary_key=True, index=True)
+    invoice_id = Column(Integer, ForeignKey("invoices.id"), nullable=False)
+    description = Column(Text, nullable=False)
+    quantity = Column(Integer, default=1)
+    price = Column(DECIMAL(10, 4), nullable=False)
+    tax = Column(DECIMAL(5, 2), default=0)
+
+    invoice = relationship("Invoice", back_populates="items")
+
+class PaymentMethod(Base):
+    __tablename__ = "payment_methods"
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=False)
+    is_active = Column(Boolean, default=True)
+
+class Payment(Base):
+    __tablename__ = "payments"
+    id = Column(Integer, primary_key=True, index=True)
+    customer_id = Column(Integer, ForeignKey("customers.id"), nullable=False)
+    invoice_id = Column(Integer, ForeignKey("invoices.id"), nullable=True)
+    payment_type_id = Column(Integer, ForeignKey("payment_methods.id"), nullable=False)
+    receipt_number = Column(String(100), nullable=False)
+    date = Column(DateTime(timezone=True), server_default=func.now())
+    amount = Column(DECIMAL(10, 4), nullable=False)
+    comment = Column(Text)
+
+    customer = relationship("Customer", back_populates="payments")
+    invoice = relationship("Invoice", back_populates="payments")
+    payment_method = relationship("PaymentMethod")
+
+class Transaction(Base):
+    __tablename__ = "transactions"
+    id = Column(Integer, primary_key=True, index=True)
+    type = Column(String(20), nullable=False) # debit/credit
+    customer_id = Column(Integer, ForeignKey("customers.id"), nullable=False)
+    price = Column(DECIMAL(10, 4), nullable=False)
+    total = Column(DECIMAL(10, 4), nullable=False)
+    date = Column(DateTime(timezone=True), server_default=func.now())
+    category_id = Column(Integer, ForeignKey("transaction_categories.id"), nullable=False)
+    description = Column(Text)
+    service_id = Column(Integer)
+    invoice_id = Column(Integer, ForeignKey("invoices.id"))
+
+    customer = relationship("Customer", back_populates="transactions")
+    category = relationship("TransactionCategory")
+    invoice = relationship("Invoice")

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Table, message, Button, Modal, Form, Input, Select, Spin } from 'antd';
+import { Table, message, Button, Modal, Form, Input, Select, Spin, Popconfirm, Space } from 'antd';
 import axios from 'axios';
 
 function UsersTable() {
@@ -7,6 +7,7 @@ function UsersTable() {
   const [loading, setLoading] = useState(true);
   const [modalVisible, setModalVisible] = useState(false);
   const [form] = Form.useForm();
+  const [editingUser, setEditingUser] = useState(null);
   const [editRolesForm] = Form.useForm(); // Use a separate form instance for Edit Roles modal
   const [rolesMap, setRolesMap] = useState({});
   const [permissionsMap, setPermissionsMap] = useState({});
@@ -25,8 +26,8 @@ function UsersTable() {
     try { // Using a single try-catch block for all fetches improves error handling
       // Fetch users and all available roles in parallel for efficiency
       const [usersRes, rolesRes] = await Promise.all([
-        axios.get('/api/users/', { headers: { Authorization: `Bearer ${token}` } }),
-        axios.get('/api/roles/', { headers: { Authorization: `Bearer ${token}` } })
+        axios.get('/api/v1/users/', { headers: { Authorization: `Bearer ${token}` } }),
+        axios.get('/api/v1/roles/', { headers: { Authorization: `Bearer ${token}` } })
       ]);
       
       setUsers(usersRes.data);
@@ -34,7 +35,7 @@ function UsersTable() {
 
       // Fetch assigned roles for each user
       const rolesPromises = usersRes.data.map(user =>
-        axios.get(`/api/user-roles/${user.id}`, {
+        axios.get(`/api/v1/user-roles/${user.id}`, {
           headers: { Authorization: `Bearer ${token}` },
         }).then(res => ({ userId: user.id, roles: res.data }))
           .catch(() => ({ userId: user.id, roles: [] }))
@@ -81,19 +82,58 @@ function UsersTable() {
 
   const handleFormFinish = async (values) => {
     const token = localStorage.getItem('access_token');
+
+    // When editing, if the password field is empty, don't send it in the payload
+    if (editingUser && !values.password) {
+      delete values.password;
+    }
+
     try {
-      await axios.post('/api/users/', values, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-      message.success('User added successfully');
+      if (editingUser) {
+        // Update existing user
+        await axios.put(`/api/v1/users/${editingUser.id}`, values, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+      } else {
+        // Create new user
+        await axios.post('/api/v1/users/', values, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+      }
+      message.success(`User ${editingUser ? 'updated' : 'added'} successfully`);
       setModalVisible(false);
+      setEditingUser(null);
       form.resetFields();
       fetchData(); // Refresh all data efficiently
     } catch (error) {
-      message.error('Failed to add user');
-      console.error('Error adding user:', error);
+      const errorDetail = error.response?.data?.detail;
+      const errorMessage = Array.isArray(errorDetail) ? errorDetail.map(e => `${e.loc[1]}: ${e.msg}`).join('; ') : errorDetail || `Failed to ${editingUser ? 'update' : 'add'} user`;
+      message.error(errorMessage);
+      console.error('Error submitting user:', error);
+    }
+  };
+
+  const handleEditUser = (user) => {
+    setEditingUser(user);
+    form.setFieldsValue({
+      ...user,
+      password: '', // Clear password field for editing
+    });
+    setModalVisible(true);
+  };
+
+  const handleDeleteUser = async (userId) => {
+    const token = localStorage.getItem('access_token');
+    try {
+      await axios.delete(`/api/v1/users/${userId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      message.success('User deleted successfully');
+      // Manually filter out the deleted user from the local state
+      // to provide immediate UI feedback without a full re-fetch.
+      setUsers(currentUsers => currentUsers.filter(user => user.id !== userId));
+    } catch (error) {
+      message.error('Failed to delete user.');
     }
   };
 
@@ -119,7 +159,7 @@ function UsersTable() {
     const token = localStorage.getItem('access_token');
     try {
       await axios.put(
-        `/api/user-roles/${editRolesModal.user.id}/sync-roles`,
+        `/api/v1/user-roles/${editRolesModal.user.id}/sync-roles`,
         { role_ids: values.role_ids }, // Send the array of role IDs
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -194,6 +234,20 @@ function UsersTable() {
           ? permissionsMap[userId].join(', ')
           : <Spin size="small" />,
     },
+    {
+      title: 'Actions',
+      key: 'actions',
+      render: (_, record) => (
+        <Space size="middle">
+          <Button size="small" onClick={() => handleEditUser(record)}>
+            Edit User
+          </Button>
+          <Popconfirm title="Are you sure you want to delete this user?" onConfirm={() => handleDeleteUser(record.id)}>
+            <Button size="small" danger>Delete</Button>
+          </Popconfirm>
+        </Space>
+      ),
+    },
   ];
 
   return (
@@ -204,7 +258,7 @@ function UsersTable() {
       </Button>
       <Table dataSource={users} columns={columns} rowKey="id" loading={loading} />
       <Modal
-        title="Add User"
+        title={editingUser ? 'Edit User' : 'Add User'}
         open={modalVisible}
         onCancel={handleModalCancel}
         footer={null}
@@ -214,16 +268,15 @@ function UsersTable() {
           <Form.Item name="email" label="Email" rules={[{ required: true, type: 'email' }]}>
             <Input />
           </Form.Item>
-          <Form.Item name="password" label="Password" rules={[{ required: true }]}>
-            <Input.Password />
+          <Form.Item name="password" label="Password" help={editingUser ? 'Leave blank to keep current password' : ''} rules={[{ required: !editingUser }]}>
+            <Input.Password placeholder="New Password" />
           </Form.Item>
           <Form.Item name="full_name" label="Full Name" rules={[{ required: true }]}>
             <Input />
           </Form.Item>
-          {/* Add more fields as needed */}
           <Form.Item>
             <Button type="primary" htmlType="submit" style={{ width: '100%' }}>
-              Add
+              {editingUser ? 'Save Changes' : 'Add User'}
             </Button>
           </Form.Item>
         </Form>

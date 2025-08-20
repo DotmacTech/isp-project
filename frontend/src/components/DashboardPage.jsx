@@ -16,6 +16,7 @@ import {
   StockOutlined,
   FieldTimeOutlined,
   LineChartOutlined,
+  GlobalOutlined,
 } from '@ant-design/icons';
 import axios from 'axios';
 
@@ -28,6 +29,11 @@ function DashboardPage() {
   const navigate = useNavigate();
   const [openKeys, setOpenKeys] = useState([]);
   const [currentUser, setCurrentUser] = useState(null);
+
+  // Helper function for creating menu items
+  function getItem(label, key, icon, children, type) {
+    return { key, icon, children, label, type };
+  }
 
   // This effect ensures the correct submenu opens automatically
   // when you navigate to any of its nested routes.
@@ -48,7 +54,7 @@ function DashboardPage() {
         return;
       }
       try {
-        const response = await axios.get('/api/users/me/', {
+        const response = await axios.get('/api/v1/users/me/', {
           headers: { Authorization: `Bearer ${token}` },
         });
         setCurrentUser(response.data);
@@ -81,76 +87,45 @@ function DashboardPage() {
     },
   ];
 
+  const menuItems = [
+    getItem(<Link to="/dashboard">Dashboard</Link>, '/dashboard', <DashboardOutlined />),
+    getItem('Customers', 'customers', <UserOutlined />, [
+      getItem(<Link to="/dashboard/customers/view">View Customers</Link>, '/dashboard/customers/view'),
+      getItem(<Link to="/dashboard/customers/add">Add Customer</Link>, '/dashboard/customers/add'),
+      getItem(<Link to="/dashboard/customers/sessions">Manage Sessions</Link>, '/dashboard/customers/sessions'),
+    ]),
+    getItem('Billing', 'billing', <DollarOutlined />, [
+      getItem(<Link to="/dashboard/billing/services">Services</Link>, '/dashboard/billing/services'),
+      getItem(<Link to="/dashboard/billing/invoices">Invoices</Link>, '/dashboard/billing/invoices'),
+      getItem(<Link to="/dashboard/billing/tariffs">Tariffs</Link>, '/dashboard/billing/tariffs'),
+      getItem(<Link to="/dashboard/billing/payments">Payments</Link>, '/dashboard/billing/payments'),
+    ]),
+    getItem('Network', 'network', <ApartmentOutlined />, [
+      getItem(<Link to="/dashboard/network/devices">Monitor Devices</Link>, '/dashboard/network/devices'),
+      getItem(<Link to="/dashboard/network/ips">Manage IPs</Link>, '/dashboard/network/ips'),
+      getItem(<Link to="/dashboard/network/radius">RADIUS Sessions</Link>, '/dashboard/network/radius'),
+    ]),
+    getItem('Support', 'support', <CustomerServiceOutlined />, [
+      getItem(<Link to="/dashboard/support/tickets">Tickets</Link>, '/dashboard/support/tickets'),
+      getItem(<Link to="/dashboard/support/knowledgebase">Knowledge Base</Link>, '/dashboard/support/knowledgebase'),
+    ]),
+    getItem('Settings', 'settings', <SettingOutlined />, [
+      getItem(<Link to="/dashboard/settings/users">Users</Link>, '/dashboard/settings/users', <UserOutlined />),
+      getItem(<Link to="/dashboard/settings/roles">Roles</Link>, '/dashboard/settings/roles', <SafetyCertificateOutlined />),
+      getItem(<Link to="/dashboard/settings/permissions">Permissions</Link>, '/dashboard/settings/permissions', <SecurityScanOutlined />),
+      getItem(<Link to="/dashboard/settings/locations">Locations</Link>, '/dashboard/settings/locations', <GlobalOutlined />),
+      getItem(<Link to="/dashboard/settings/billing">Billing Settings</Link>, '/dashboard/settings/billing', <DollarOutlined />),
+      getItem(<Link to="/dashboard/settings/audit-logs">Audit Logs</Link>, '/dashboard/settings/audit-logs', <FileTextOutlined />),
+    ]),
+  ];
+
   return (
     <Layout style={{ minHeight: '100vh' }}>
       <Sider collapsible>
         <div className="logo" style={{ height: '32px', margin: '16px', background: 'rgba(255, 255, 255, 0.2)', borderRadius: '6px' }}>
             <Title level={4} style={{ color: 'white', textAlign: 'center', lineHeight: '32px', margin: 0 }}>ISP</Title>
         </div>
-        <Menu theme="dark" mode="inline" selectedKeys={[location.pathname]} openKeys={openKeys} onOpenChange={onOpenChange}>
-          <Menu.Item key="/dashboard" icon={<DashboardOutlined />}>
-            <Link to="/dashboard">Dashboard</Link>
-          </Menu.Item>
-
-          <SubMenu key="customers" icon={<UserOutlined />} title="Customers">
-            <Menu.Item key="/dashboard/customers/view"><Link to="/dashboard/customers/view">View Customers</Link></Menu.Item>
-            <Menu.Item key="/dashboard/customers/add"><Link to="/dashboard/customers/add">Add Customer</Link></Menu.Item>
-            <Menu.Item key="/dashboard/customers/sessions"><Link to="/dashboard/customers/sessions">Manage Sessions</Link></Menu.Item>
-          </SubMenu>
-
-          <SubMenu key="resellers" icon={<TeamOutlined />} title="Resellers">
-            <Menu.Item key="/dashboard/resellers/view"><Link to="/dashboard/resellers/view">View Resellers</Link></Menu.Item>
-            <Menu.Item key="/dashboard/resellers/add"><Link to="/dashboard/resellers/add">Add Reseller</Link></Menu.Item>
-          </SubMenu>
-
-          <SubMenu key="billing" icon={<DollarOutlined />} title="Billing">
-            <Menu.Item key="/dashboard/billing/invoices"><Link to="/dashboard/billing/invoices">Invoices</Link></Menu.Item>
-            <Menu.Item key="/dashboard/billing/tariffs"><Link to="/dashboard/billing/tariffs">Tariffs & Plans</Link></Menu.Item>
-            <Menu.Item key="/dashboard/billing/payments"><Link to="/dashboard/billing/payments">Payments</Link></Menu.Item>
-          </SubMenu>
-
-          <SubMenu key="network" icon={<ApartmentOutlined />} title="Network">
-            <Menu.Item key="/dashboard/network/devices"><Link to="/dashboard/network/devices">Monitor Devices</Link></Menu.Item>
-            <Menu.Item key="/dashboard/network/ips"><Link to="/dashboard/network/ips">Manage IPs</Link></Menu.Item>
-            <Menu.Item key="/dashboard/network/radius"><Link to="/dashboard/network/radius">RADIUS Sessions</Link></Menu.Item>
-          </SubMenu>
-
-          <SubMenu key="support" icon={<CustomerServiceOutlined />} title="Support">
-            <Menu.Item key="/dashboard/support/tickets"><Link to="/dashboard/support/tickets">Tickets</Link></Menu.Item>
-            <Menu.Item key="/dashboard/support/knowledgebase"><Link to="/dashboard/support/knowledgebase">Knowledge Base</Link></Menu.Item>
-          </SubMenu>
-
-          <SubMenu key="inventory" icon={<StockOutlined />} title="Inventory">
-            <Menu.Item key="/dashboard/inventory/equipment"><Link to="/dashboard/inventory/equipment">Equipment</Link></Menu.Item>
-            <Menu.Item key="/dashboard/inventory/stock"><Link to="/dashboard/inventory/stock">Stock Management</Link></Menu.Item>
-          </SubMenu>
-
-          <SubMenu key="field-ops" icon={<FieldTimeOutlined />} title="Field Operations">
-            <Menu.Item key="/dashboard/field-ops/jobs"><Link to="/dashboard/field-ops/jobs">Assign Jobs</Link></Menu.Item>
-            <Menu.Item key="/dashboard/field-ops/technicians"><Link to="/dashboard/field-ops/technicians">Technician Tracking</Link></Menu.Item>
-          </SubMenu>
-
-          <SubMenu key="reports" icon={<LineChartOutlined />} title="Reports">
-            <Menu.Item key="/dashboard/reports/usage"><Link to="/dashboard/reports/usage">Usage Reports</Link></Menu.Item>
-            <Menu.Item key="/dashboard/reports/financial"><Link to="/dashboard/reports/financial">Financial Reports</Link></Menu.Item>
-          </SubMenu>
-
-          {/* Settings Submenu */}
-          <SubMenu key="settings" icon={<SettingOutlined />} title="Settings" >
-            <Menu.Item key="/dashboard/settings/users" icon={<UserOutlined />}>
-              <Link to="/dashboard/settings/users">Users</Link>
-            </Menu.Item>
-            <Menu.Item key="/dashboard/settings/roles" icon={<SafetyCertificateOutlined />}>
-              <Link to="/dashboard/settings/roles">Roles</Link>
-            </Menu.Item>
-            <Menu.Item key="/dashboard/settings/permissions" icon={<SecurityScanOutlined />}>
-              <Link to="/dashboard/settings/permissions">Permissions</Link>
-            </Menu.Item>
-            <Menu.Item key="/dashboard/settings/audit-logs" icon={<FileTextOutlined />}>
-              <Link to="/dashboard/settings/audit-logs">Audit Logs</Link>
-            </Menu.Item>
-          </SubMenu>
-        </Menu>
+        <Menu theme="dark" mode="inline" items={menuItems} selectedKeys={[location.pathname]} openKeys={openKeys} onOpenChange={onOpenChange} />
       </Sider>
       <Layout>
         <Header style={{ background: '#fff', padding: '0 24px', display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>

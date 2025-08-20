@@ -19,7 +19,7 @@ function LoginPage() {
         formData.append('password', values.password);
 
         try {
-            const response = await fetch('/token', { // Use relative URL without /api prefix
+            const response = await fetch('/api/v1/token', {
                 method: 'POST',
                 body: formData,
             });

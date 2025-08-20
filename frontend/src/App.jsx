@@ -7,7 +7,14 @@ import UserManagementPage from './components/UserManagementPage';
 import RolesTable from './components/RolesTable';
 import PermissionsTable from './components/PermissionsTable';
 import AuditLogsTable from './components/AuditLogsTable';
+import CustomersPage from './components/CustomersPage';
 import DashboardContent from './components/DashboardContent';
+import LocationsPage from './components/LocationsPage';
+import InvoicesPage from './components/InvoicesPage';
+import ServicesPage from './components/ServicesPage';
+import TariffsPage from './components/TariffsPage';
+import PaymentsPage from './components/PaymentsPage';
+import BillingSettingsPage from './components/BillingSettingsPage';
 
 function App() {
   return (
@@ -20,11 +27,22 @@ function App() {
       <Route path="/dashboard" element={<DashboardPage />}>
         <Route index element={<DashboardContent />} /> {/* Default content for /dashboard */}
 
+        {/* Customer Routes */}
+        <Route path="customers/view" element={<CustomersPage />} />
+
         {/* Settings Sub-routes */}
         <Route path="settings/users" element={<UserManagementPage />} />
         <Route path="settings/roles" element={<RolesTable />} />
         <Route path="settings/permissions" element={<PermissionsTable />} />
         <Route path="settings/audit-logs" element={<AuditLogsTable />} />
+        <Route path="settings/locations" element={<LocationsPage />} />
+        <Route path="settings/billing" element={<BillingSettingsPage />} />
+
+        {/* Billing Sub-routes */}
+        <Route path="billing/services" element={<ServicesPage />} />
+        <Route path="billing/invoices" element={<InvoicesPage />} />
+        <Route path="billing/tariffs" element={<TariffsPage />} />
+        <Route path="billing/payments" element={<PaymentsPage />} />
 
       </Route>
     </Routes>

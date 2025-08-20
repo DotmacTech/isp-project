@@ -25,7 +25,7 @@ function AuditLogsTable() {
     }
 
     try {
-      const response = await axios.get('/api/audit-logs/', {
+      const response = await axios.get('/api/v1/audit-logs/', {
         headers: { Authorization: `Bearer ${token}` },
         params: {
           skip: (params.pagination.current - 1) * params.pagination.pageSize,

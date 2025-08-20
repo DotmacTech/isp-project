@@ -2,6 +2,7 @@ from fastapi import Request, Depends
 from sqlalchemy.orm import Session
 from typing import Optional, Dict, Any
 from datetime import datetime
+from decimal import Decimal
 import json
 
 import crud
@@ -13,6 +14,8 @@ def json_serial(obj):
     """JSON serializer for objects not serializable by default json code"""
     if isinstance(obj, datetime):
         return obj.isoformat()
+    if isinstance(obj, Decimal):
+        return str(obj)
     raise TypeError(f"Type {type(obj)} not serializable")
 
 def get_changed_fields(before: Dict[str, Any], after: Dict[str, Any]) -> Dict[str, Any]:

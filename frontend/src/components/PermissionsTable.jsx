@@ -1,24 +1,24 @@
 import React, { useState, useEffect } from 'react';
-import { Table, message, Button, Modal, Form, Input } from 'antd';
+import { Table, message, Button, Modal, Form, Input, Popconfirm, Space } from 'antd';
 import axios from 'axios';
 
 function PermissionsTable() {
   const [permissions, setPermissions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [modalVisible, setModalVisible] = useState(false);
+  const [editingPermission, setEditingPermission] = useState(null);
   const [form] = Form.useForm();
 
-  useEffect(() => {
-    const fetchPermissions = async () => {
+  const fetchPermissions = async () => {
+    setLoading(true);
       const token = localStorage.getItem('access_token');
-      console.log('access_token:', token); // Debug: log the token
       if (!token) {
         message.error('No access token found. Please log in.');
         setLoading(false);
         return;
       }
       try {
-        const response = await axios.get('/api/permissions/', {
+        const response = await axios.get('/api/v1/permissions/', {
           headers: {
             Authorization: `Bearer ${token}`,
           },
@@ -34,44 +34,62 @@ function PermissionsTable() {
       } finally {
         setLoading(false);
       }
-    };
+  };
 
+  useEffect(() => {
     fetchPermissions();
   }, []);
 
   const handleAddPermission = () => {
+    setEditingPermission(null);
+    form.resetFields();
     setModalVisible(true);
   };
 
   const handleModalCancel = () => {
     setModalVisible(false);
+    setEditingPermission(null);
     form.resetFields();
   };
 
   const handleFormFinish = async (values) => {
     const token = localStorage.getItem('access_token');
+
     try {
-      await axios.post('/api/permissions/', values, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-      message.success('Permission added successfully');
+      if (editingPermission) {
+        await axios.put(`/api/v1/permissions/${editingPermission.id}`, values, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+      } else {
+        await axios.post('/api/v1/permissions/', values, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+      }
+      message.success(`Permission ${editingPermission ? 'updated' : 'added'} successfully`);
       setModalVisible(false);
-      form.resetFields();
-      // Refresh permissions list
-      setLoading(true);
-      const response = await axios.get('/api/permissions', {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-      setPermissions(response.data);
+      fetchPermissions();
     } catch (error) {
-      message.error('Failed to add permission');
-      console.error('Error adding permission:', error);
-    } finally {
-      setLoading(false);
+      message.error(error.response?.data?.detail || `Failed to ${editingPermission ? 'update' : 'add'} permission.`);
+      console.error('Error submitting permission:', error);
+    }
+  };
+
+  const handleEditPermission = (permission) => {
+    setEditingPermission(permission);
+    form.setFieldsValue(permission);
+    setModalVisible(true);
+  };
+
+  const handleDeletePermission = async (permissionId) => {
+    const token = localStorage.getItem('access_token');
+    try {
+      await axios.delete(`/api/v1/permissions/${permissionId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      message.success('Permission deleted successfully');
+      setPermissions(currentPermissions => currentPermissions.filter(p => p.id !== permissionId));
+    } catch (error) {
+      message.error('Failed to delete permission.');
     }
   };
 
@@ -82,19 +100,31 @@ function PermissionsTable() {
       key: 'id',
     },
     {
-      title: 'Code',
+      title: 'Permission Code',
       dataIndex: 'code',
       key: 'code',
-    },
-    {
-      title: 'Name',
-      dataIndex: 'name',
-      key: 'name',
     },
     {
       title: 'Description',
       dataIndex: 'description',
       key: 'description',
+    },
+    {
+      title: 'Module',
+      dataIndex: 'module',
+      key: 'module',
+    },
+    {
+      title: 'Actions',
+      key: 'actions',
+      render: (_, record) => (
+        <Space>
+          <Button size="small" onClick={() => handleEditPermission(record)}>Edit</Button>
+          <Popconfirm title="Are you sure you want to delete this permission?" onConfirm={() => handleDeletePermission(record.id)}>
+            <Button size="small" danger>Delete</Button>
+          </Popconfirm>
+        </Space>
+      ),
     },
   ];
 
@@ -106,7 +136,7 @@ function PermissionsTable() {
       </Button>
       <Table dataSource={permissions} columns={columns} rowKey="id" loading={loading} />
       <Modal
-        title="Add Permission"
+        title={editingPermission ? 'Edit Permission' : 'Add Permission'}
         open={modalVisible}
         onCancel={handleModalCancel}
         footer={null}
@@ -116,16 +146,15 @@ function PermissionsTable() {
           <Form.Item name="code" label="Code" rules={[{ required: true }]}>
             <Input />
           </Form.Item>
-          <Form.Item name="name" label="Name" rules={[{ required: true }]}>
+          <Form.Item name="description" label="Description" rules={[{ required: true }]}>
             <Input />
           </Form.Item>
-          <Form.Item name="description" label="Description">
+          <Form.Item name="module" label="Module" rules={[{ required: true }]}>
             <Input />
           </Form.Item>
-          {/* Add more fields as needed */}
           <Form.Item>
             <Button type="primary" htmlType="submit" style={{ width: '100%' }}>
-              Add
+              {editingPermission ? 'Save Changes' : 'Add Permission'}
             </Button>
           </Form.Item>
         </Form>

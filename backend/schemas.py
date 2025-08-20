@@ -1,6 +1,7 @@
 from pydantic import BaseModel, EmailStr
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from datetime import datetime
+from decimal import Decimal
 import enum
 
 # Enums for RBAC (mirroring models.py)
@@ -68,6 +69,11 @@ class PermissionBase(BaseModel):
 
 class PermissionCreate(PermissionBase):
     pass
+
+class PermissionUpdate(BaseModel):
+    code: Optional[str] = None
+    description: Optional[str] = None
+    module: Optional[str] = None
 
 class PermissionResponse(PermissionBase):
     id: int
@@ -147,6 +153,91 @@ class AuditLogResponse(AuditLogBase):
 class PaginatedAuditLogResponse(BaseModel):
     total: int
     items: List[AuditLogResponse]
+
+class CustomerBillingBase(BaseModel):
+    enabled: bool = True
+    billing_date: int = 1
+    grace_period: int = 3
+
+class CustomerBillingResponse(CustomerBillingBase):
+    customer_id: int
+    class Config:
+        from_attributes = True
+
+class CustomerBase(BaseModel):
+    name: str
+    email: Optional[EmailStr] = None
+    phone: Optional[str] = None
+    status: str = "active"
+    category: str = "person" # person or company
+
+class CustomerCreate(CustomerBase):
+    login: str
+    partner_id: int
+    location_id: int
+    billing_config: Optional[CustomerBillingBase] = None
+
+class CustomerUpdate(BaseModel):
+    name: Optional[str] = None
+    email: Optional[EmailStr] = None
+    phone: Optional[str] = None
+    status: Optional[str] = None
+    partner_id: Optional[int] = None
+    location_id: Optional[int] = None
+    billing_config: Optional[CustomerBillingBase] = None
+
+class CustomerResponse(CustomerBase):
+    id: int
+    login: str
+    created_at: datetime
+    partner_id: int
+    location_id: int
+    billing_config: Optional[CustomerBillingResponse] = None
+
+    class Config:
+        from_attributes = True
+
+class PaginatedCustomerResponse(BaseModel):
+    total: int
+    items: List[CustomerResponse]
+
+# Location Schemas
+class LocationBase(BaseModel):
+    name: str
+    address_line_1: Optional[str] = None
+    address_line_2: Optional[str] = None
+    city: Optional[str] = None
+    state_province: Optional[str] = None
+    postal_code: Optional[str] = None
+    country: Optional[str] = 'Nigeria'
+    latitude: Optional[Decimal] = None
+    longitude: Optional[Decimal] = None
+    timezone: Optional[str] = 'Africa/Lagos'
+    custom_fields: Optional[Dict[str, Any]] = {}
+
+class LocationCreate(LocationBase):
+    pass
+
+class LocationUpdate(BaseModel):
+    name: Optional[str] = None
+    address_line_1: Optional[str] = None
+    address_line_2: Optional[str] = None
+    city: Optional[str] = None
+    state_province: Optional[str] = None
+    postal_code: Optional[str] = None
+    country: Optional[str] = None
+    latitude: Optional[Decimal] = None
+    longitude: Optional[Decimal] = None
+    timezone: Optional[str] = None
+    custom_fields: Optional[Dict[str, Any]] = None
+
+class LocationResponse(LocationBase):
+    id: int
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
 
 # Existing Schemas (modified or renamed)
 class PartnerBase(BaseModel):
@@ -266,6 +357,141 @@ class Setting(SettingBase):
 
     class Config:
         from_attributes = True
+
+# --- Tariff Schemas ---
+class InternetTariffBase(BaseModel):
+    title: str
+    price: Decimal
+    speed_download: int
+    speed_upload: int
+
+class InternetTariffCreate(InternetTariffBase):
+    pass
+
+class InternetTariffUpdate(BaseModel):
+    title: Optional[str] = None
+    price: Optional[Decimal] = None
+    speed_download: Optional[int] = None
+    speed_upload: Optional[int] = None
+
+class InternetTariffResponse(InternetTariffBase):
+    id: int
+    class Config:
+        from_attributes = True
+
+class PaginatedInternetTariffResponse(BaseModel):
+    total: int
+    items: List[InternetTariffResponse]
+
+# --- Service Schemas ---
+class InternetServiceBase(BaseModel):
+    customer_id: int
+    tariff_id: int
+    status: str = 'active'
+    description: str
+    login: str
+    password: Optional[str] = None
+    ipv4: Optional[str] = None
+    mac: Optional[str] = None
+
+class InternetServiceCreate(InternetServiceBase):
+    pass
+
+class InternetServiceUpdate(BaseModel):
+    tariff_id: Optional[int] = None
+    status: Optional[str] = None
+    description: Optional[str] = None
+    password: Optional[str] = None
+    ipv4: Optional[str] = None
+    mac: Optional[str] = None
+
+class InternetServiceResponse(InternetServiceBase):
+    id: int
+    start_date: datetime
+    customer: CustomerResponse
+    tariff: InternetTariffResponse
+    class Config:
+        from_attributes = True
+
+class PaginatedInternetServiceResponse(BaseModel):
+    total: int
+    items: List[InternetServiceResponse]
+
+# --- Billing Schemas ---
+class InvoiceItemBase(BaseModel):
+    description: str
+    quantity: int = 1
+    price: Decimal
+    tax: Decimal = 0
+
+class InvoiceItemCreate(InvoiceItemBase):
+    pass
+
+class InvoiceItemResponse(InvoiceItemBase):
+    id: int
+    class Config:
+        from_attributes = True
+
+class InvoiceBase(BaseModel):
+    customer_id: int
+    status: str = 'not_paid'
+
+class InvoiceCreate(InvoiceBase):
+    items: List[InvoiceItemCreate]
+
+class InvoiceUpdate(BaseModel):
+    status: Optional[str] = None
+
+class InvoiceResponse(InvoiceBase):
+    id: int
+    number: str
+    date_created: datetime
+    total: Decimal
+    due: Decimal
+    items: List[InvoiceItemResponse] = []
+    class Config:
+        from_attributes = True
+
+class PaginatedInvoiceResponse(BaseModel):
+    total: int
+    items: List[InvoiceResponse]
+
+class PaymentBase(BaseModel):
+    customer_id: int
+    invoice_id: Optional[int] = None
+    payment_type_id: int
+    receipt_number: str
+    amount: Decimal
+    comment: Optional[str] = None
+
+class PaymentCreate(PaymentBase):
+    pass
+
+class PaymentResponse(PaymentBase):
+    id: int
+    date: datetime
+    class Config:
+        from_attributes = True
+
+class PaginatedPaymentResponse(BaseModel):
+    total: int
+    items: List[PaymentResponse]
+
+class PaymentMethodResponse(BaseModel):
+    id: int
+    name: str
+
+    class Config:
+        from_attributes = True
+
+class TaxResponse(BaseModel):
+    id: int
+    name: str
+    rate: Decimal
+
+    class Config:
+        from_attributes = True
+
 
 class SetupData(BaseModel):
     partner_name: str
