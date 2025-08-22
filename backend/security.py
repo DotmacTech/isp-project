@@ -1,15 +1,12 @@
-from passlib.context import CryptContext
 from datetime import datetime, timedelta
 from typing import Optional # Removed List from typing import
 from jose import JWTError, jwt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
-from functools import wraps
-
-import crud, schemas, models
-from database import SessionLocal
-
+import schemas, models
+from api.v1.deps import get_db
+from auth_utils import verify_password
 # Configuration for JWT
 import os
 
@@ -19,15 +16,7 @@ if not SECRET_KEY:
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/token")
-
-def verify_password(plain_password, hashed_password):
-    return pwd_context.verify(plain_password, hashed_password)
-
-def get_password_hash(password):
-    return pwd_context.hash(password)
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode = data.copy()
@@ -39,16 +28,9 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 
-# Dependency to get DB session
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-
 # Authenticate user (for /token endpoint)
 def authenticate_user(db: Session, email: str, password: str) -> Optional[models.User]:
+    import crud
     user = crud.get_user_by_email(db, email=email)
     if not user or not verify_password(password, user.hashed_password):
         return None
@@ -56,6 +38,7 @@ def authenticate_user(db: Session, email: str, password: str) -> Optional[models
 
 # Get current user from token
 async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> models.User:
+    import crud
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -80,10 +63,12 @@ async def get_current_active_user(current_user: models.User = Depends(get_curren
     return current_user
 
 # Get current administrator profile (requires user to be an admin)
-async def get_current_administrator(current_user: models.User = Depends(get_current_active_user)) -> models.Administrator:
-    db = next(get_db()) # Get a new DB session for this dependency
+async def get_current_administrator(
+    current_user: models.User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+) -> models.Administrator:
+    import crud
     admin_profile = crud.get_administrator_by_user_id(db=db, user_id=current_user.id)
-    db.close()
     if not admin_profile:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User is not an administrator")
     return admin_profile
@@ -91,6 +76,7 @@ async def get_current_administrator(current_user: models.User = Depends(get_curr
 # RBAC: Check for specific permission
 def require_permission(permission_code: str):
     async def permission_checker(current_user: models.User = Depends(get_current_active_user), db: Session = Depends(get_db)):
+        import crud
         user_permissions = crud.get_user_permissions(db, current_user.id)
         if permission_code not in user_permissions:
             raise HTTPException(
@@ -103,6 +89,7 @@ def require_permission(permission_code: str):
 # RBAC: Check for specific roles
 def require_roles(role_names: list[str]): # Changed List to list
     async def role_checker(current_user: models.User = Depends(get_current_active_user), db: Session = Depends(get_db)):
+        import crud
         # Efficiently fetch role names in a single query to avoid N+1 problem
         assigned_role_names_query = db.query(models.Role.name).join(models.UserRole).filter(models.UserRole.user_id == current_user.id)
         assigned_role_names = {name for name, in assigned_role_names_query}

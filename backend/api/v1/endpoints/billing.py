@@ -2,6 +2,9 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List, Optional
 
+from datetime import date, timedelta
+from decimal import Decimal
+
 from ..deps import get_db
 import crud, schemas, security
 
@@ -9,8 +12,32 @@ router = APIRouter(prefix="/billing", tags=["billing"])
 
 # --- Invoices ---
 @router.post("/invoices/", response_model=schemas.InvoiceResponse, status_code=status.HTTP_201_CREATED, dependencies=[Depends(security.require_permission("billing.create_invoices"))])
-def create_invoice(invoice: schemas.InvoiceCreate, db: Session = Depends(get_db)):
-    return crud.create_invoice(db=db, invoice=invoice)
+def create_manual_invoice(invoice_data: schemas.ManualInvoiceCreate, db: Session = Depends(get_db)):
+    """
+    Manually creates an invoice from the UI or a direct API call.
+    This endpoint handles the business logic for calculating totals and generating invoice numbers.
+    """
+    # --- Business Logic for Manual Invoice Creation ---
+    # 1. Calculate total
+    total_amount = sum(item.price * item.quantity for item in invoice_data.items)
+
+    # 2. Generate invoice number
+    today = date.today()
+    invoice_count_for_month = db.query(crud.models.Invoice).filter(crud.models.Invoice.date_created >= today.replace(day=1)).count()
+    invoice_number = f"INV-{today.strftime('%Y-%m')}-{invoice_count_for_month + 1:04d}"
+
+    # 3. Determine due date (using a default of 14 days)
+    due_date = today + timedelta(days=14)
+
+    # 4. Construct the full InvoiceCreate schema to pass to the CRUD layer
+    full_invoice_schema = schemas.InvoiceCreate(
+        **invoice_data.model_dump(),
+        number=invoice_number,
+        total=total_amount,
+        due=total_amount,
+        date_till=due_date
+    )
+    return crud.create_invoice(db=db, invoice=full_invoice_schema)
 
 @router.get("/invoices/", response_model=schemas.PaginatedInvoiceResponse, dependencies=[Depends(security.require_permission("billing.view_invoices"))])
 def read_invoices(skip: int = 0, limit: int = 100, customer_id: Optional[int] = None, db: Session = Depends(get_db)):

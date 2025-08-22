@@ -1,42 +1,55 @@
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import or_, func, text
-import models, schemas, security
+import models, schemas, auth_utils
 from datetime import date
 from typing import Optional, List
 
-# Helper function to get user permissions
 def get_user_permissions(db: Session, user_id: int, customer_id: int = None, reseller_id: int = None) -> list[str]:
     """
-    Get all effective permissions for a user based on their system-wide,
-    customer-scoped, and reseller-scoped roles in a single query.
+    Get all effective permissions for a user, including those from parent roles,
+    based on their system, customer, and reseller scopes.
+    This uses a recursive CTE for high efficiency.
     """
-    # Build the query filters
-    scope_filters = [
-        # System-level roles
-        (models.UserRole.customer_id.is_(None) & models.UserRole.reseller_id.is_(None)),
-    ]
-    if customer_id is not None:
-        scope_filters.append(models.UserRole.customer_id == customer_id)
-    if reseller_id is not None:
-        scope_filters.append(models.UserRole.reseller_id == reseller_id)
+    recursive_cte_sql = text("""
+        WITH RECURSIVE effective_roles AS (
+            -- Base case: direct roles assigned to the user within the correct scope
+            SELECT r.id, r.parent_role_id
+            FROM user_roles ur
+            JOIN roles r ON ur.role_id = r.id
+            WHERE ur.user_id = :user_id
+              AND (
+                  (r.scope = 'system' AND :customer_id IS NULL AND :reseller_id IS NULL) OR
+                  (r.scope = 'customer' AND ur.customer_id = :customer_id) OR
+                  (r.scope = 'reseller' AND ur.reseller_id = :reseller_id)
+              )
+        
+            UNION
+        
+            -- Recursive step: roles inherited from the roles found above
+            SELECT r.id, r.parent_role_id
+            FROM roles r
+            JOIN effective_roles er ON r.id = er.parent_role_id
+        )
+        SELECT DISTINCT p.code
+        FROM effective_roles er
+        JOIN role_permissions rp ON er.id = rp.role_id
+        JOIN permissions p ON rp.permission_id = p.id;
+    """)
 
-    # Combine filters with OR
-    combined_filter = or_(*scope_filters)
-
-    # Execute a single query to get all permission codes
-    permissions_query = db.query(models.Permission.code).join(
-        models.RolePermission, models.Permission.id == models.RolePermission.permission_id
-    ).join(
-        models.Role, models.RolePermission.role_id == models.Role.id
-    ).join(
-        models.UserRole, models.Role.id == models.UserRole.role_id
-    ).filter(models.UserRole.user_id == user_id).filter(combined_filter).distinct()
+    permissions_query = db.execute(
+        recursive_cte_sql,
+        {
+            "user_id": user_id,
+            "customer_id": customer_id,
+            "reseller_id": reseller_id
+        }
+    ).fetchall()
 
     return [code for code, in permissions_query]
 
 # User CRUD
 def create_user(db: Session, user: schemas.UserCreate) -> models.User:
-    hashed_password = security.get_password_hash(user.password)
+    hashed_password = auth_utils.get_password_hash(user.password)
     db_user = models.User(
         email=user.email,
         full_name=user.full_name,
@@ -61,9 +74,9 @@ def get_users(db: Session, skip: int = 0, limit: int = 100) -> list[models.User]
 def update_user(db: Session, user_id: int, user_update: schemas.UserUpdate) -> Optional[models.User]:
     db_user = get_user(db, user_id)
     if db_user:
-        update_data = user_update.dict(exclude_unset=True)
+        update_data = user_update.model_dump(exclude_unset=True)
         if "password" in update_data and update_data["password"]:
-            db_user.hashed_password = security.get_password_hash(update_data["password"])
+            db_user.hashed_password = auth_utils.get_password_hash(update_data["password"])
             del update_data["password"]
         for key, value in update_data.items():
             setattr(db_user, key, value)
@@ -80,7 +93,7 @@ def delete_user(db: Session, user_id: int) -> Optional[models.User]:
 
 # UserProfile CRUD
 def create_user_profile(db: Session, user_id: int, profile: schemas.UserProfileCreate) -> models.UserProfile:
-    db_profile = models.UserProfile(user_id=user_id, **profile.dict())
+    db_profile = models.UserProfile(user_id=user_id, **profile.model_dump())
     db.add(db_profile)
     db.commit()
     db.refresh(db_profile)
@@ -91,10 +104,10 @@ def get_user_profile(db: Session, user_id: int) -> Optional[models.UserProfile]:
 
 # Customer CRUD (Expanded)
 def create_customer(db: Session, customer: schemas.CustomerCreate) -> models.Customer:
-    customer_data = customer.dict(exclude={"billing_config"})
+    customer_data = customer.model_dump(exclude={"billing_config"})
     db_customer = models.Customer(**customer_data)
     if customer.billing_config:
-        db_customer.billing_config = models.CustomerBilling(**customer.billing_config.dict())
+        db_customer.billing_config = models.CustomerBilling(**customer.billing_config.model_dump())
     db.add(db_customer)
     db.commit()
     db.refresh(db_customer)
@@ -135,7 +148,7 @@ def get_location(db: Session, location_id: int) -> Optional[models.Location]:
     return db.query(models.Location).filter(models.Location.id == location_id).first()
 
 def create_location(db: Session, location: schemas.LocationCreate) -> models.Location:
-    db_location = models.Location(**location.dict())
+    db_location = models.Location(**location.model_dump())
     db.add(db_location)
     db.commit()
     db.refresh(db_location)
@@ -144,7 +157,7 @@ def create_location(db: Session, location: schemas.LocationCreate) -> models.Loc
 def update_location(db: Session, location_id: int, location_update: schemas.LocationUpdate) -> Optional[models.Location]:
     db_location = get_location(db, location_id)
     if db_location:
-        update_data = location_update.dict(exclude_unset=True)
+        update_data = location_update.model_dump(exclude_unset=True)
         for key, value in update_data.items():
             setattr(db_location, key, value)
         db.commit()
@@ -164,17 +177,17 @@ def get_locations(db: Session, skip: int = 0, limit: int = 100) -> List[models.L
 def update_customer(db: Session, customer_id: int, customer_update: schemas.CustomerUpdate) -> Optional[models.Customer]:
     db_customer = get_customer(db, customer_id)
     if db_customer:
-        update_data = customer_update.dict(exclude_unset=True, exclude={"billing_config"})
+        update_data = customer_update.model_dump(exclude_unset=True, exclude={"billing_config"})
         for key, value in update_data.items():
             setattr(db_customer, key, value)
 
         if customer_update.billing_config:
             if db_customer.billing_config:
-                billing_update_data = customer_update.billing_config.dict(exclude_unset=True)
+                billing_update_data = customer_update.billing_config.model_dump(exclude_unset=True)
                 for key, value in billing_update_data.items():
                     setattr(db_customer.billing_config, key, value)
             else:
-                db_customer.billing_config = models.CustomerBilling(**customer_update.billing_config.dict())
+                db_customer.billing_config = models.CustomerBilling(**customer_update.billing_config.model_dump())
 
         db.commit()
         db.refresh(db_customer)
@@ -216,7 +229,7 @@ def get_roles(db: Session, skip: int = 0, limit: int = 100) -> list[models.Role]
 def update_role(db: Session, role_id: int, role_update: schemas.RoleUpdate) -> Optional[models.Role]:
     db_role = get_role(db, role_id)
     if db_role:
-        update_data = role_update.dict(exclude_unset=True)
+        update_data = role_update.model_dump(exclude_unset=True)
         if "permission_codes" in update_data:
             new_permission_codes = update_data.pop("permission_codes", [])
 
@@ -247,7 +260,7 @@ def delete_role(db: Session, role_id: int) -> Optional[models.Role]:
 
 # Audit Log CRUD
 def create_audit_log(db: Session, log_data: schemas.AuditLogCreate) -> models.AuditLog:
-    db_log = models.AuditLog(**log_data.dict())
+    db_log = models.AuditLog(**log_data.model_dump())
     db.add(db_log)
     db.commit()
     db.refresh(db_log)
@@ -262,7 +275,7 @@ def get_audit_logs_count(db: Session) -> int:
 
 # Permission CRUD (New RBAC)
 def create_permission(db: Session, permission: schemas.PermissionCreate) -> models.Permission:
-    db_permission = models.Permission(**permission.dict())
+    db_permission = models.Permission(**permission.model_dump())
     db.add(db_permission)
     db.commit()
     db.refresh(db_permission)
@@ -280,7 +293,7 @@ def get_permissions(db: Session, skip: int = 0, limit: int = 100) -> list[models
 def update_permission(db: Session, permission_id: int, permission_update: schemas.PermissionUpdate) -> Optional[models.Permission]:
     db_permission = get_permission(db, permission_id)
     if db_permission:
-        update_data = permission_update.dict(exclude_unset=True)
+        update_data = permission_update.model_dump(exclude_unset=True)
         for key, value in update_data.items():
             setattr(db_permission, key, value)
         db.commit()
@@ -355,7 +368,7 @@ def get_partners(db: Session, skip: int = 0, limit: int = 100):
     return db.query(models.Partner).offset(skip).limit(limit).all()
 
 def create_partner(db: Session, partner: schemas.PartnerCreate):
-    db_partner = models.Partner(**partner.dict())
+    db_partner = models.Partner(**partner.model_dump())
     db.add(db_partner)
     db.commit()
     db.refresh(db_partner)
@@ -395,7 +408,7 @@ def create_administrator(db: Session, admin_data: schemas.AdministratorCreate, p
 def update_administrator(db: Session, admin_id: int, admin_update: schemas.AdministratorUpdate):
     db_admin = get_administrator(db, admin_id)
     if db_admin:
-        update_data = admin_update.dict(exclude_unset=True)
+        update_data = admin_update.model_dump(exclude_unset=True)
         for key, value in update_data.items():
             setattr(db_admin, key, value)
         
@@ -410,66 +423,6 @@ def delete_administrator(db: Session, admin_id: int):
         db.commit()
     return db_admin
 
-# Framework Permission CRUD (Renamed)
-def get_framework_permission(db: Session, permission_id: int):
-    return db.query(models.FrameworkPermission).filter(models.FrameworkPermission.id == permission_id).first()
-
-def get_framework_permission_by_code(db: Session, code: str):
-    return db.query(models.FrameworkPermission).filter(models.FrameworkPermission.code == code).first()
-
-def get_framework_permissions(db: Session, skip: int = 0, limit: int = 100):
-    return db.query(models.FrameworkPermission).offset(skip).limit(limit).all()
-
-def create_framework_permission(db: Session, permission: schemas.FrameworkPermissionCreate):
-    db_permission = models.FrameworkPermission(**permission.dict())
-    db.add(db_permission)
-    db.commit()
-    db.refresh(db_permission)
-    return db_permission
-
-# Framework Role CRUD (Renamed)
-def get_framework_role(db: Session, role_id: int):
-    return db.query(models.FrameworkRole).options(joinedload(models.FrameworkRole.permissions)).filter(models.FrameworkRole.id == role_id).first()
-
-def get_framework_role_by_name(db: Session, name: str):
-    return db.query(models.FrameworkRole).options(joinedload(models.FrameworkRole.permissions)).filter(models.FrameworkRole.name == name).first()
-
-def get_framework_roles(db: Session, skip: int = 0, limit: int = 100):
-    return db.query(models.FrameworkRole).options(joinedload(models.FrameworkRole.permissions)).offset(skip).limit(limit).all()
-
-def create_framework_role(db: Session, role: schemas.FrameworkRoleCreate):
-    db_role = models.FrameworkRole(name=role.name, description=role.description)
-    if role.permission_ids:
-        permissions = db.query(models.FrameworkPermission).filter(models.FrameworkPermission.id.in_(role.permission_ids)).all()
-        db_role.permissions.extend(permissions)
-    db.add(db_role)
-    db.commit()
-    db.refresh(db_role)
-    return db_role
-
-def update_framework_role(db: Session, role_id: int, role_update: schemas.FrameworkRoleUpdate):
-    db_role = get_framework_role(db, role_id)
-    if db_role:
-        update_data = role_update.dict(exclude_unset=True)
-        if "permission_ids" in update_data:
-            permission_ids = update_data.pop("permission_ids")
-            permissions = db.query(models.FrameworkPermission).filter(models.FrameworkPermission.id.in_(permission_ids)).all()
-            db_role.permissions = permissions
-        
-        for key, value in update_data.items():
-            setattr(db_role, key, value)
-        
-        db.commit()
-        db.refresh(db_role)
-    return db_role
-
-def delete_framework_role(db: Session, role_id: int):
-    db_role = get_framework_role(db, role_id)
-    if db_role:
-        db.delete(db_role)
-        db.commit()
-    return db_role
-
 # Settings (FrameworkConfig) CRUD
 def get_setting(db: Session, setting_id: int):
     return db.query(models.FrameworkConfig).filter(models.FrameworkConfig.id == setting_id).first()
@@ -481,7 +434,7 @@ def get_settings(db: Session, skip: int = 0, limit: int = 100):
     return db.query(models.FrameworkConfig).offset(skip).limit(limit).all()
 
 def create_setting(db: Session, setting: schemas.SettingCreate):
-    db_setting = models.FrameworkConfig(**setting.dict())
+    db_setting = models.FrameworkConfig(**setting.model_dump())
     db.add(db_setting)
     db.commit()
     db.refresh(db_setting)
@@ -490,7 +443,7 @@ def create_setting(db: Session, setting: schemas.SettingCreate):
 def update_setting(db: Session, setting_id: int, setting: schemas.SettingUpdate):
     db_setting = get_setting(db, setting_id)
     if db_setting:
-        update_data = setting.dict(exclude_unset=True)
+        update_data = setting.model_dump(exclude_unset=True)
         for key, value in update_data.items():
             setattr(db_setting, key, value)
         db.commit()
@@ -506,7 +459,7 @@ def delete_setting(db: Session, setting_id: int):
 
 # --- Tariff CRUD ---
 def create_internet_tariff(db: Session, tariff: schemas.InternetTariffCreate) -> models.InternetTariff:
-    db_tariff = models.InternetTariff(**tariff.dict())
+    db_tariff = models.InternetTariff(**tariff.model_dump())
     db.add(db_tariff)
     db.commit()
     db.refresh(db_tariff)
@@ -524,7 +477,7 @@ def get_internet_tariffs_count(db: Session) -> int:
 def update_internet_tariff(db: Session, tariff_id: int, tariff_update: schemas.InternetTariffUpdate) -> Optional[models.InternetTariff]:
     db_tariff = get_internet_tariff(db, tariff_id)
     if db_tariff:
-        update_data = tariff_update.dict(exclude_unset=True)
+        update_data = tariff_update.model_dump(exclude_unset=True)
         for key, value in update_data.items():
             setattr(db_tariff, key, value)
         db.commit()
@@ -540,7 +493,7 @@ def delete_internet_tariff(db: Session, tariff_id: int) -> Optional[models.Inter
 
 # --- Service CRUD ---
 def create_internet_service(db: Session, service: schemas.InternetServiceCreate) -> models.InternetService:
-    db_service = models.InternetService(**service.dict())
+    db_service = models.InternetService(**service.model_dump())
     db.add(db_service)
     db.commit()
     db.refresh(db_service)
@@ -552,13 +505,15 @@ def get_internet_service(db: Session, service_id: int) -> Optional[models.Intern
         joinedload(models.InternetService.tariff)
     ).filter(models.InternetService.id == service_id).first()
 
-def get_internet_services(db: Session, skip: int = 0, limit: int = 100, customer_id: Optional[int] = None) -> List[models.InternetService]:
+def get_internet_services(db: Session, skip: int = 0, limit: int = 100, customer_id: Optional[int] = None, status: Optional[str] = None) -> List[models.InternetService]:
     query = db.query(models.InternetService).options(
         joinedload(models.InternetService.customer),
         joinedload(models.InternetService.tariff)
     )
     if customer_id:
         query = query.filter(models.InternetService.customer_id == customer_id)
+    if status:
+        query = query.filter(models.InternetService.status == status)
     return query.offset(skip).limit(limit).all()
 
 def get_internet_services_count(db: Session, customer_id: Optional[int] = None) -> int:
@@ -570,7 +525,7 @@ def get_internet_services_count(db: Session, customer_id: Optional[int] = None) 
 def update_internet_service(db: Session, service_id: int, service_update: schemas.InternetServiceUpdate) -> Optional[models.InternetService]:
     db_service = get_internet_service(db, service_id)
     if db_service:
-        update_data = service_update.dict(exclude_unset=True)
+        update_data = service_update.model_dump(exclude_unset=True)
         for key, value in update_data.items():
             setattr(db_service, key, value)
         db.commit()
@@ -586,22 +541,21 @@ def delete_internet_service(db: Session, service_id: int) -> Optional[models.Int
 
 # --- Billing CRUD ---
 def create_invoice(db: Session, invoice: schemas.InvoiceCreate) -> models.Invoice:
-    # A more complex logic would be here to generate invoice number, calculate totals, etc.
-    total = sum(item.price * item.quantity for item in invoice.items)
-    
+    # Business logic (numbering, totals) is handled in the calling service/engine.
     db_invoice = models.Invoice(
         customer_id=invoice.customer_id,
         status=invoice.status,
-        number=f"INV-{db.query(models.Invoice).count() + 1}", # Simplified number generation
-        total=total,
-        due=total
+        number=invoice.number,
+        total=invoice.total,
+        due=invoice.due,
+        date_till=invoice.date_till
     )
     
     for item_data in invoice.items:
-        db_invoice.items.append(models.InvoiceItem(**item_data.dict()))
+        db_invoice.items.append(models.InvoiceItem(**item_data.model_dump()))
 
     db.add(db_invoice)
-    db.commit()
+    db.flush() # Flush to assign an ID to db_invoice before returning
     db.refresh(db_invoice)
     return db_invoice
 
@@ -621,7 +575,7 @@ def get_invoices_count(db: Session, customer_id: Optional[int] = None) -> int:
     return query.count()
 
 def create_payment(db: Session, payment: schemas.PaymentCreate) -> models.Payment:
-    db_payment = models.Payment(**payment.dict())
+    db_payment = models.Payment(**payment.model_dump())
     db.add(db_payment)
     
     # If linked to an invoice, update invoice status
@@ -641,10 +595,20 @@ def create_payment(db: Session, payment: schemas.PaymentCreate) -> models.Paymen
     if not has_unpaid_invoices(db, customer_id=payment.customer_id):
         print(f"Customer {payment.customer_id} has no more unpaid invoices. Reactivating services.")
         reactivated_count = reactivate_customer_services(db, customer_id=payment.customer_id)
-        if reactivated_count > 0:
+        
+        # Also update the customer's status if they were blocked
+        customer_to_update = get_customer(db, payment.customer_id)
+        status_changed = False
+        if customer_to_update and customer_to_update.status == 'blocked':
+            customer_to_update.status = 'active'
+            status_changed = True
+            print(f"  -> Set customer {customer_to_update.id} status to 'active'")
+
+        if reactivated_count > 0 or status_changed:
             # The reactivation function stages the changes, so we commit them here.
             db.commit()
-            print(f"Reactivated {reactivated_count} services for customer {payment.customer_id}.")
+            if reactivated_count > 0:
+                print(f"Reactivated {reactivated_count} services for customer {payment.customer_id}.")
 
     db.refresh(db_payment)
     return db_payment
@@ -693,7 +657,7 @@ def get_customers_with_overdue_invoices(db: Session) -> List[models.Customer]:
 
     # Now, fetch the full customer objects for those IDs.
     return db.query(models.Customer).filter(
-        models.Customer.id.in_(overdue_customer_ids)
+        models.Customer.id.in_(overdue_customer_ids.select())
     ).all()
 
 def has_unpaid_invoices(db: Session, customer_id: int) -> bool:
@@ -735,6 +699,139 @@ def get_customers_to_reactivate(db: Session) -> List[models.Customer]:
     ).distinct().subquery()
 
     return db.query(models.Customer).filter(
-        models.Customer.id.in_(customers_with_blocked_services),
-        models.Customer.id.notin_(customers_with_unpaid_invoices)
+        models.Customer.id.in_(customers_with_blocked_services.select()),
+        models.Customer.id.notin_(customers_with_unpaid_invoices.select())
     ).all()
+
+def create_lead(db: Session, lead: schemas.LeadCreate) -> models.Lead:
+    db_lead = models.Lead(**lead.model_dump())
+    db.add(db_lead)
+    db.commit()
+    db.refresh(db_lead)
+    return db_lead
+
+def get_lead(db: Session, lead_id: int) -> Optional[models.Lead]:
+    return db.query(models.Lead).filter(models.Lead.id == lead_id).first()
+
+def get_leads(db: Session, skip: int = 0, limit: int = 100, search: Optional[str] = None, status: Optional[str] = None) -> List[models.Lead]:
+    query = db.query(models.Lead)
+    if search:
+        search_term = f"%{search}%"
+        query = query.filter(
+            or_(
+                models.Lead.name.ilike(search_term),
+                models.Lead.email.ilike(search_term),
+                models.Lead.phone.ilike(search_term)
+            )
+        )
+    if status:
+        query = query.filter(models.Lead.status == status)
+    return query.order_by(models.Lead.id.desc()).offset(skip).limit(limit).all()
+
+def get_leads_count(db: Session, search: Optional[str] = None, status: Optional[str] = None) -> int:
+    query = db.query(models.Lead)
+    if search:
+        search_term = f"%{search}%"
+        query = query.filter(
+            or_(
+                models.Lead.name.ilike(search_term),
+                models.Lead.email.ilike(search_term),
+                models.Lead.phone.ilike(search_term)
+            )
+        )
+    if status:
+        query = query.filter(models.Lead.status == status)
+    return query.count()
+
+def update_lead(db: Session, db_obj: models.Lead, obj_in: schemas.LeadUpdate) -> models.Lead:
+    update_data = obj_in.model_dump(exclude_unset=True)
+    for key, value in update_data.items():
+        setattr(db_obj, key, value)
+    db.commit()
+    db.refresh(db_obj)
+    return db_obj
+
+def delete_lead(db: Session, lead_id: int) -> Optional[models.Lead]:
+    db_lead = get_lead(db, lead_id)
+    if db_lead:
+        db.delete(db_lead)
+        db.commit()
+    return db_lead
+
+def create_opportunity(db: Session, opportunity: schemas.OpportunityCreate) -> models.Opportunity:
+    db_opportunity = models.Opportunity(**opportunity.model_dump())
+    db.add(db_opportunity)
+    db.commit()
+    db.refresh(db_opportunity)
+    return db_opportunity
+
+
+def get_opportunity(db: Session, opportunity_id: int) -> Optional[models.Opportunity]:
+    return db.query(models.Opportunity).options(joinedload(models.Opportunity.lead)).filter(models.Opportunity.id == opportunity_id).first()
+
+def get_opportunities(db: Session, skip: int = 0, limit: int = 100, search: Optional[str] = None, stage: Optional[str] = None) -> List[models.Opportunity]:
+    query = db.query(models.Opportunity).options(joinedload(models.Opportunity.lead))
+    if search:
+        search_term = f"%{search}%"
+        query = query.filter(models.Opportunity.name.ilike(search_term))
+    if stage:
+        query = query.filter(models.Opportunity.stage == stage)
+    return query.order_by(models.Opportunity.id.desc()).offset(skip).limit(limit).all()
+
+def get_opportunities_count(db: Session, search: Optional[str] = None, stage: Optional[str] = None) -> int:
+    query = db.query(models.Opportunity)
+    if search:
+        search_term = f"%{search}%"
+        query = query.filter(models.Opportunity.name.ilike(search_term))
+    if stage:
+        query = query.filter(models.Opportunity.stage == stage)
+    return query.count()
+
+def update_opportunity(db: Session, db_obj: models.Opportunity, obj_in: schemas.OpportunityUpdate) -> models.Opportunity:
+    update_data = obj_in.model_dump(exclude_unset=True)
+    for key, value in update_data.items():
+        setattr(db_obj, key, value)
+    db.commit()
+    db.refresh(db_obj)
+    return db_obj
+
+def delete_opportunity(db: Session, opportunity_id: int) -> Optional[models.Opportunity]:
+    db_opportunity = get_opportunity(db, opportunity_id)
+    if db_opportunity:
+        db.delete(db_opportunity)
+        db.commit()
+    return db_opportunity
+
+def convert_opportunity_to_customer(db: Session, opportunity: models.Opportunity, conversion_data: schemas.OpportunityConvert) -> models.Customer:
+    """
+    Converts a won opportunity into a new customer.
+    This is a transactional operation.
+    """
+    try:
+        # 1. Get the original lead
+        lead = get_lead(db, opportunity.lead_id)
+        if not lead:
+            raise ValueError("Original lead for this opportunity not found.")
+
+        # 2. Create the new customer record
+        customer_create_schema = schemas.CustomerCreate(
+            name=lead.name,
+            email=lead.email,
+            phone=lead.phone,
+            **conversion_data.model_dump()
+        )
+        new_customer = create_customer(db, customer=customer_create_schema)
+
+        # 3. Update the opportunity
+        opportunity.stage = "Closed Won"
+        opportunity.customer_id = new_customer.id
+
+        # 4. Update the lead
+        lead.status = "Converted"
+        
+        db.commit()
+        db.refresh(new_customer)
+        return new_customer
+    except Exception as e:
+        db.rollback()
+        raise e

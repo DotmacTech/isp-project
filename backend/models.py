@@ -1,5 +1,4 @@
 from sqlalchemy import (
-    create_engine,
     Column,
     Integer,
     String,
@@ -12,7 +11,8 @@ from sqlalchemy import (
     BigInteger,
     DECIMAL,
     UniqueConstraint,
-    Text
+    Text,
+    text
 )
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.dialects.postgresql import ARRAY, CITEXT
@@ -51,6 +51,7 @@ class User(Base):
     user_profile = relationship("UserProfile", back_populates="user", uselist=False, cascade="all, delete-orphan")
     user_roles = relationship("UserRole", back_populates="user", cascade="all, delete-orphan")
 
+    authored_ticket_messages = relationship("TicketMessage", back_populates="author")
 class Customer(Base):
     __tablename__ = "customers" # Existing table, adding relationship
 
@@ -82,6 +83,7 @@ class Customer(Base):
     invoices = relationship("Invoice", back_populates="customer", cascade="all, delete-orphan")
     payments = relationship("Payment", back_populates="customer", cascade="all, delete-orphan")
     transactions = relationship("Transaction", back_populates="customer", cascade="all, delete-orphan")
+    tickets = relationship("Ticket", back_populates="customer", cascade="all, delete-orphan")
 
 class CustomerBilling(Base):
     __tablename__ = "customer_billing"
@@ -89,6 +91,7 @@ class CustomerBilling(Base):
     customer_id = Column(BigInteger, ForeignKey("customers.id"), primary_key=True)
     enabled = Column(Boolean, default=True)
     billing_date = Column(Integer, default=1)
+    billing_due = Column(Integer, server_default=text('14'), nullable=False) # Days after invoice creation it is due
     grace_period = Column(Integer, default=3)
 
     customer = relationship("Customer", back_populates="billing_config")
@@ -214,24 +217,6 @@ class AuditLog(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
 
 
-# Existing tables, modified or renamed
-# Association Table for Framework Roles and Permissions (renamed)
-framework_role_permissions_table = Table('framework_role_permissions', Base.metadata,
-    Column('role_id', Integer, ForeignKey('framework_roles.id')),
-    Column('permission_id', Integer, ForeignKey('framework_permissions.id'))
-)
-
-class FrameworkPermission(Base): # Renamed from Permission
-    __tablename__ = "framework_permissions"
-
-    id = Column(Integer, primary_key=True, index=True)
-    code = Column(String, unique=True, nullable=False, index=True) # Renamed from 'name' to 'code'
-    description = Column(String)
-    module = Column(String) # Added module field
-    is_system = Column(Boolean, default=False) # Added is_system
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
-
 class Partner(Base):
     __tablename__ = "partners"
 
@@ -247,22 +232,41 @@ class Partner(Base):
     customers = relationship("Customer", back_populates="partner")
 
 
+class Lead(Base):
+    __tablename__ = "leads"
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=False)
+    email = Column(String, nullable=True)
+    phone = Column(String, nullable=True)
+    status = Column(String(50), default="new")
+    converted_to_opportunity_id = Column(Integer, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+class Opportunity(Base):
+    __tablename__ = "opportunities"
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=False)
+    lead_id = Column(Integer, ForeignKey("leads.id"))
+    customer_id = Column(BigInteger, ForeignKey("customers.id"), nullable=True)
+    amount = Column(DECIMAL(10, 2))
+    stage = Column(String(50))
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    lead = relationship("Lead")
+
 class Administrator(Base):
     __tablename__ = "administrators"
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(BigInteger, ForeignKey("users.id"), unique=True) # Link to new User model
     partner_id = Column(Integer, ForeignKey("partners.id"))
-    # Removed: login, password_hash, name, email (now in User model)
     phone = Column(String)
-    role = Column(String, default="admin") # Keep for backward compatibility, but new RBAC will be primary
     timeout = Column(Integer, default=1200)
     is_active = Column(Boolean, default=True)
     last_login = Column(DateTime(timezone=True))
     login_attempts = Column(Integer, default=0)
     locked_until = Column(DateTime(timezone=True))
     password_changed_at = Column(DateTime(timezone=True), server_default=func.now())
-    framework_roles = Column(ARRAY(Integer), default=[]) # Keep for backward compatibility
     custom_permissions = Column(JSON, default={})
     ui_preferences = Column(JSON, default={})
     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -270,6 +274,7 @@ class Administrator(Base):
 
     user = relationship("User", back_populates="administrator_profile")
     partner = relationship("Partner", back_populates="administrators")
+    assigned_tickets = relationship("Ticket", back_populates="assignee", foreign_keys="Ticket.assign_to")
 
 
 class FrameworkConfig(Base):
@@ -284,23 +289,6 @@ class FrameworkConfig(Base):
     description = Column(String)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
-
-
-class FrameworkRole(Base): # Renamed from Role
-    __tablename__ = "framework_roles"
-
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String, unique=True, nullable=False, index=True)
-    description = Column(String)
-    is_system = Column(Boolean, default=False) # Added is_system
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
-
-    permissions = relationship(
-        "FrameworkPermission",
-        secondary=framework_role_permissions_table,
-        backref="framework_roles"
-    )
 
 # --- Tariffs (Service Plans) ---
 class InternetTariff(Base):
@@ -341,7 +329,7 @@ class Tax(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, nullable=False)
     rate = Column(DECIMAL(5, 4), nullable=False)
-    archived = Column(Boolean, default=False)
+    archived = Column(Boolean, server_default=text('false'), nullable=False)
 
 class Invoice(Base):
     __tablename__ = "invoices"
@@ -406,3 +394,77 @@ class Transaction(Base):
     customer = relationship("Customer", back_populates="transactions")
     category = relationship("TransactionCategory")
     invoice = relationship("Invoice")
+
+# =============================================================================
+# INTEGRATED SUPPORT SYSTEM
+# =============================================================================
+
+class TicketStatus(Base):
+    __tablename__ = "ticket_statuses"
+    id = Column(Integer, primary_key=True, index=True)
+    title_for_agent = Column(String(255), nullable=False)
+    title_for_customer = Column(String(255), nullable=False)
+    label = Column(String(50), default='default') # For UI coloring (e.g., primary, success, warning)
+    mark = Column(ARRAY(String), default=['open', 'unresolved']) # open, unresolved, closed
+    icon = Column(String(50), default='fa-tasks')
+    view_on_dashboard = Column(Boolean, default=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+class TicketGroup(Base):
+    __tablename__ = "ticket_groups"
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String(255), nullable=False, unique=True)
+    description = Column(Text)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+class TicketType(Base):
+    __tablename__ = "ticket_types"
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String(255), nullable=False, unique=True)
+    background_color = Column(String(50))
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+class Ticket(Base):
+    __tablename__ = "tickets"
+    id = Column(Integer, primary_key=True, index=True)
+    customer_id = Column(Integer, ForeignKey("customers.id", ondelete="SET NULL"), nullable=True)
+    reporter_user_id = Column(BigInteger, ForeignKey("users.id")) # Can be admin user or customer user
+    assign_to = Column(Integer, ForeignKey("administrators.id")) # admin ID
+    status_id = Column(Integer, ForeignKey("ticket_statuses.id"), nullable=False)
+    group_id = Column(Integer, ForeignKey("ticket_groups.id"))
+    type_id = Column(Integer, ForeignKey("ticket_types.id"))
+    subject = Column(Text, nullable=False)
+    priority = Column(String(20), default='medium') # low, medium, high, urgent
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+    customer = relationship("Customer", back_populates="tickets")
+    reporter = relationship("User")
+    status = relationship("TicketStatus")
+    group = relationship("TicketGroup")
+    ticket_type = relationship("TicketType")
+    assignee = relationship("Administrator", back_populates="assigned_tickets")
+    messages = relationship("TicketMessage", back_populates="ticket", cascade="all, delete-orphan")
+
+class TicketMessage(Base):
+    __tablename__ = "ticket_messages"
+    id = Column(Integer, primary_key=True, index=True)
+    ticket_id = Column(Integer, ForeignKey("tickets.id", ondelete="CASCADE"), nullable=False)
+    author_user_id = Column(BigInteger, ForeignKey("users.id")) # Author if admin or customer user
+    message = Column(Text, nullable=False)
+    is_internal_note = Column(Boolean, default=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    ticket = relationship("Ticket", back_populates="messages")
+    author = relationship("User", back_populates="authored_ticket_messages")
+
+class TicketAttachment(Base):
+    __tablename__ = "ticket_attachments"
+    id = Column(Integer, primary_key=True, index=True)
+    message_id = Column(Integer, ForeignKey("ticket_messages.id", ondelete="CASCADE"), nullable=False)
+    file_id = Column(Integer) # This would link to a central file storage table later
+    filename_original = Column(String(255), nullable=False)
+    filename_uploaded = Column(String(255), nullable=False) # e.g., S3 key
+    content_type = Column(String(100))
+    file_size = Column(BigInteger)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())

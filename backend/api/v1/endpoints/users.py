@@ -22,7 +22,7 @@ async def create_user(
         raise HTTPException(status_code=400, detail="Email already registered")
     
     new_user = crud.create_user(db=db, user=user)
-    after_dict = schemas.UserResponse.from_orm(new_user).dict()
+    after_dict = schemas.UserResponse.model_validate(new_user).model_dump()
     
     await logger.log("create", "users", new_user.id, after_values=after_dict, risk_level='medium')
     
@@ -50,13 +50,13 @@ async def update_user(
     db_user_before = crud.get_user(db, user_id)
     if not db_user_before:
         raise HTTPException(status_code=404, detail="User not found")
-    before_dict = schemas.UserResponse.from_orm(db_user_before).dict()
+    before_dict = schemas.UserResponse.model_validate(db_user_before).model_dump()
     db.expire(db_user_before)
 
     updated_user = crud.update_user(db=db, user_id=user_id, user_update=user)
     if not updated_user:
         raise HTTPException(status_code=404, detail="User not found after update.")
-    after_dict = schemas.UserResponse.from_orm(updated_user).dict()
+    after_dict = schemas.UserResponse.model_validate(updated_user).model_dump()
 
     await logger.log("update", "users", user_id, before_values=before_dict, after_values=after_dict, risk_level='medium')
     return updated_user
@@ -70,7 +70,7 @@ async def delete_user(
     db_user_before = crud.get_user(db, user_id)
     if not db_user_before:
         raise HTTPException(status_code=404, detail="User not found")
-    before_dict = schemas.UserResponse.from_orm(db_user_before).dict()
+    before_dict = schemas.UserResponse.model_validate(db_user_before).model_dump()
 
     deleted_user = crud.delete_user(db, user_id=user_id)
     if deleted_user is None:

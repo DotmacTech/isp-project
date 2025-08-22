@@ -10,7 +10,7 @@ router = APIRouter(prefix="/locations", tags=["locations"])
 @router.post("/", response_model=schemas.LocationResponse, status_code=status.HTTP_201_CREATED, dependencies=[Depends(security.require_permission("crm.create_accounts"))])
 async def create_location(location: schemas.LocationCreate, db: Session = Depends(get_db), logger: audit.AuditLogger = Depends(audit.get_audit_logger)):
     new_location = crud.create_location(db=db, location=location)
-    after_dict = schemas.LocationResponse.from_orm(new_location).dict()
+    after_dict = schemas.LocationResponse.model_validate(new_location).model_dump()
     await logger.log("create", "locations", new_location.id, after_values=after_dict, risk_level='low')
     return new_location
 
@@ -36,13 +36,13 @@ async def update_location(
     db_location_before = crud.get_location(db, location_id)
     if not db_location_before:
         raise HTTPException(status_code=404, detail="Location not found")
-    before_dict = schemas.LocationResponse.from_orm(db_location_before).dict()
+    before_dict = schemas.LocationResponse.model_validate(db_location_before).model_dump()
     db.expire(db_location_before)
 
     updated_location = crud.update_location(db=db, location_id=location_id, location_update=location)
     if not updated_location:
         raise HTTPException(status_code=404, detail="Location not found after update.")
-    after_dict = schemas.LocationResponse.from_orm(updated_location).dict()
+    after_dict = schemas.LocationResponse.model_validate(updated_location).model_dump()
 
     await logger.log("update", "locations", location_id, before_values=before_dict, after_values=after_dict, risk_level='low')
     return updated_location
@@ -56,7 +56,7 @@ async def delete_location(
     db_location_before = crud.get_location(db, location_id)
     if not db_location_before:
         raise HTTPException(status_code=404, detail="Location not found")
-    before_dict = schemas.LocationResponse.from_orm(db_location_before).dict()
+    before_dict = schemas.LocationResponse.model_validate(db_location_before).model_dump()
 
     deleted_location = crud.delete_location(db, location_id=location_id)
     if deleted_location is None:

@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, ConfigDict
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 from decimal import Decimal
@@ -38,16 +38,14 @@ class UserInDB(UserBase):
     created_at: datetime
     updated_at: Optional[datetime] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class UserResponse(UserBase):
     id: int
     created_at: datetime
     updated_at: Optional[datetime] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class UserProfileBase(BaseModel):
     customer_id: Optional[int] = None
@@ -59,8 +57,7 @@ class UserProfileCreate(UserProfileBase):
 class UserProfileResponse(UserProfileBase):
     user_id: int
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class PermissionBase(BaseModel):
     code: str
@@ -79,8 +76,7 @@ class PermissionResponse(PermissionBase):
     id: int
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class RoleBase(BaseModel):
     name: str
@@ -103,8 +99,7 @@ class RoleResponse(RoleBase):
     created_at: datetime
     permissions: List[PermissionResponse] = []
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class UserRoleBase(BaseModel):
     user_id: int
@@ -121,8 +116,7 @@ class UserRolesSync(BaseModel):
 class UserRoleResponse(UserRoleBase):
     assigned_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 # Audit Log Schemas
 class AuditLogBase(BaseModel):
@@ -147,8 +141,7 @@ class AuditLogCreate(AuditLogBase):
 class AuditLogResponse(AuditLogBase):
     id: int
     created_at: datetime
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class PaginatedAuditLogResponse(BaseModel):
     total: int
@@ -157,12 +150,12 @@ class PaginatedAuditLogResponse(BaseModel):
 class CustomerBillingBase(BaseModel):
     enabled: bool = True
     billing_date: int = 1
+    billing_due: int = 14
     grace_period: int = 3
 
 class CustomerBillingResponse(CustomerBillingBase):
     customer_id: int
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class CustomerBase(BaseModel):
     name: str
@@ -194,8 +187,7 @@ class CustomerResponse(CustomerBase):
     location_id: int
     billing_config: Optional[CustomerBillingResponse] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class PaginatedCustomerResponse(BaseModel):
     total: int
@@ -236,8 +228,7 @@ class LocationResponse(LocationBase):
     created_at: datetime
     updated_at: Optional[datetime] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 # Existing Schemas (modified or renamed)
 class PartnerBase(BaseModel):
@@ -254,8 +245,7 @@ class Partner(PartnerBase):
     created_at: datetime
     updated_at: Optional[datetime] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class AdministratorBase(BaseModel):
     # Removed: login, name, email, role, framework_roles
@@ -282,56 +272,11 @@ class Administrator(AdministratorBase):
     partner: Partner
     user: UserResponse # Include the associated User object
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class Token(BaseModel):
     access_token: str
     token_type: str
-
-class TokenData(BaseModel):
-    username: Optional[str] = None # This will need to be updated to use email/user_id
-
-# Renamed existing Permission schemas
-class FrameworkPermissionBase(BaseModel):
-    code: str # Renamed from name
-    description: Optional[str] = None
-    module: Optional[str] = None # Added module
-
-class FrameworkPermissionCreate(FrameworkPermissionBase):
-    pass
-
-class FrameworkPermissionResponse(FrameworkPermissionBase):
-    id: int
-    is_system: bool # Added is_system
-    created_at: datetime
-    updated_at: Optional[datetime] = None
-
-    class Config:
-        from_attributes = True
-
-# Renamed existing Role schemas
-class FrameworkRoleBase(BaseModel):
-    name: str
-    description: Optional[str] = None
-
-class FrameworkRoleCreate(FrameworkRoleBase):
-    permission_ids: List[int] = []
-
-class FrameworkRoleUpdate(BaseModel):
-    name: Optional[str] = None
-    description: Optional[str] = None
-    permission_ids: Optional[List[int]] = None
-
-class FrameworkRoleResponse(FrameworkRoleBase):
-    id: int
-    is_system: bool # Added is_system
-    created_at: datetime
-    updated_at: Optional[datetime] = None
-    permissions: List[FrameworkPermissionResponse] = []
-
-    class Config:
-        from_attributes = True
 
 class SettingBase(BaseModel):
     config_key: str
@@ -355,8 +300,7 @@ class Setting(SettingBase):
     created_at: datetime
     updated_at: Optional[datetime] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 # --- Tariff Schemas ---
 class InternetTariffBase(BaseModel):
@@ -376,8 +320,7 @@ class InternetTariffUpdate(BaseModel):
 
 class InternetTariffResponse(InternetTariffBase):
     id: int
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class PaginatedInternetTariffResponse(BaseModel):
     total: int
@@ -410,8 +353,7 @@ class InternetServiceResponse(InternetServiceBase):
     start_date: datetime
     customer: CustomerResponse
     tariff: InternetTariffResponse
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class PaginatedInternetServiceResponse(BaseModel):
     total: int
@@ -422,15 +364,14 @@ class InvoiceItemBase(BaseModel):
     description: str
     quantity: int = 1
     price: Decimal
-    tax: Decimal = 0
+    tax: Decimal = Decimal("0.00")
 
 class InvoiceItemCreate(InvoiceItemBase):
     pass
 
 class InvoiceItemResponse(InvoiceItemBase):
     id: int
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class InvoiceBase(BaseModel):
     customer_id: int
@@ -438,6 +379,16 @@ class InvoiceBase(BaseModel):
 
 class InvoiceCreate(InvoiceBase):
     items: List[InvoiceItemCreate]
+    # These fields are calculated by the billing engine and passed for creation.
+    number: str
+    total: Decimal
+    due: Decimal
+    date_till: Optional[datetime] = None
+
+# New schema for manual creation from the UI/API
+class ManualInvoiceCreate(InvoiceBase):
+    items: List[InvoiceItemCreate]
+
 
 class InvoiceUpdate(BaseModel):
     status: Optional[str] = None
@@ -449,8 +400,7 @@ class InvoiceResponse(InvoiceBase):
     total: Decimal
     due: Decimal
     items: List[InvoiceItemResponse] = []
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class PaginatedInvoiceResponse(BaseModel):
     total: int
@@ -470,8 +420,7 @@ class PaymentCreate(PaymentBase):
 class PaymentResponse(PaymentBase):
     id: int
     date: datetime
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class PaginatedPaymentResponse(BaseModel):
     total: int
@@ -481,16 +430,14 @@ class PaymentMethodResponse(BaseModel):
     id: int
     name: str
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class TaxResponse(BaseModel):
     id: int
     name: str
     rate: Decimal
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class SetupData(BaseModel):
@@ -498,3 +445,187 @@ class SetupData(BaseModel):
     admin_email: EmailStr # Changed from admin_login
     admin_password: str
     admin_full_name: str # Changed from admin_name
+
+# =============================================================================
+# INTEGRATED SUPPORT SYSTEM SCHEMAS
+# =============================================================================
+
+# --- Ticket Status Schemas ---
+class TicketStatusBase(BaseModel):
+    title_for_agent: str
+    title_for_customer: str
+    label: Optional[str] = 'default'
+    mark: Optional[List[str]] = ['open', 'unresolved']
+    icon: Optional[str] = 'fa-tasks'
+    view_on_dashboard: Optional[bool] = True
+
+class TicketStatusCreate(TicketStatusBase):
+    pass
+
+class TicketStatusUpdate(BaseModel):
+    title_for_agent: Optional[str] = None
+    title_for_customer: Optional[str] = None
+    label: Optional[str] = None
+    mark: Optional[List[str]] = None
+    icon: Optional[str] = None
+    view_on_dashboard: Optional[bool] = None
+
+class TicketStatusResponse(TicketStatusBase):
+    id: int
+    created_at: datetime
+    model_config = ConfigDict(from_attributes=True)
+
+# --- Ticket Group Schemas ---
+class TicketGroupBase(BaseModel):
+    title: str
+    description: Optional[str] = None
+
+class TicketGroupCreate(TicketGroupBase):
+    pass
+
+class TicketGroupUpdate(TicketGroupBase):
+    title: Optional[str] = None
+
+class TicketGroupResponse(TicketGroupBase):
+    id: int
+    created_at: datetime
+    model_config = ConfigDict(from_attributes=True)
+
+# --- Ticket Type Schemas ---
+class TicketTypeBase(BaseModel):
+    title: str
+    background_color: Optional[str] = None
+
+class TicketTypeCreate(TicketTypeBase):
+    pass
+
+class TicketTypeUpdate(TicketTypeBase):
+    title: Optional[str] = None
+
+class TicketTypeResponse(TicketTypeBase):
+    id: int
+    created_at: datetime
+    model_config = ConfigDict(from_attributes=True)
+
+# --- Ticket Message & Attachment Schemas ---
+class TicketMessageBase(BaseModel):
+    message: str
+    is_internal_note: bool = False
+
+class TicketMessageCreate(TicketMessageBase):
+    pass # author_user_id will be set from the current user
+
+class TicketMessageResponse(TicketMessageBase):
+    id: int
+    author: UserResponse # The user who wrote the message
+    created_at: datetime
+    model_config = ConfigDict(from_attributes=True)
+
+# --- Ticket Schemas ---
+class TicketBase(BaseModel):
+    subject: str
+    priority: str = 'medium'
+
+class TicketCreate(TicketBase):
+    customer_id: int
+    type_id: int
+    status_id: int
+    group_id: Optional[int] = None
+    assign_to: Optional[int] = None
+    initial_message: str # The first message when creating a ticket
+
+class TicketUpdate(BaseModel):
+    subject: Optional[str] = None
+    priority: Optional[str] = None
+    status_id: Optional[int] = None
+    group_id: Optional[int] = None
+    assign_to: Optional[int] = None
+    type_id: Optional[int] = None
+
+class TicketResponse(TicketBase):
+    id: int
+    customer: Optional[CustomerResponse] = None
+    reporter: UserResponse
+    assignee: Optional[Administrator] = None
+    status: TicketStatusResponse
+    group: Optional[TicketGroupResponse] = None
+    ticket_type: Optional[TicketTypeResponse] = None
+    messages: List[TicketMessageResponse] = []
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+    model_config = ConfigDict(from_attributes=True)
+
+class TicketSummaryResponse(TicketBase):
+    """A leaner response for ticket list views, omitting heavy fields like messages."""
+    id: int
+    customer: Optional[CustomerResponse] = None
+    reporter: UserResponse
+    assignee: Optional[Administrator] = None
+    status: TicketStatusResponse
+    group: Optional[TicketGroupResponse] = None
+    ticket_type: Optional[TicketTypeResponse] = None
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+    model_config = ConfigDict(from_attributes=True)
+
+class PaginatedTicketResponse(BaseModel):
+    total: int
+    items: List[TicketSummaryResponse] 
+class LeadBase(BaseModel):
+    name: str
+    email: Optional[str] = None
+    phone: Optional[str] = None
+
+class LeadCreate(LeadBase):
+    pass
+
+class LeadUpdate(BaseModel):
+    name: Optional[str] = None
+    email: Optional[EmailStr] = None
+    phone: Optional[str] = None
+    status: Optional[str] = None
+
+class LeadResponse(LeadBase):
+    id: int
+    status: str
+    converted_to_opportunity_id: Optional[int] = None
+    created_at: datetime
+    model_config = ConfigDict(from_attributes=True)
+
+class PaginatedLeadResponse(BaseModel):
+    total: int
+    items: List[LeadResponse]
+
+class OpportunityBase(BaseModel):
+    name: str
+    lead_id: int
+    amount: Decimal
+    stage: str
+
+class OpportunityCreate(OpportunityBase):
+    pass
+
+class OpportunityUpdate(BaseModel):
+    name: Optional[str] = None
+    lead_id: Optional[int] = None
+    amount: Optional[Decimal] = None
+    stage: Optional[str] = None
+
+class OpportunityResponse(OpportunityBase):
+    id: int
+    customer_id: Optional[int] = None
+    lead: Optional[LeadResponse] = None
+    model_config = ConfigDict(from_attributes=True)
+
+class PaginatedOpportunityResponse(BaseModel):
+    total: int
+    items: List[OpportunityResponse]
+
+class OpportunityConvert(BaseModel):
+    """Schema for converting an opportunity to a customer."""
+    # We can reuse the CustomerCreate schema but might want to simplify it
+    # for the conversion process, as some data comes from the lead.
+    login: str
+    partner_id: int
+    location_id: int
+    billing_config: Optional[CustomerBillingBase] = None

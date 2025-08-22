@@ -14,7 +14,7 @@ async def create_customer(
     logger: audit.AuditLogger = Depends(audit.get_audit_logger)
 ):
     new_customer = crud.create_customer(db=db, customer=customer)
-    after_dict = schemas.CustomerResponse.from_orm(new_customer).dict()
+    after_dict = schemas.CustomerResponse.model_validate(new_customer).model_dump()
     await logger.log("create", "customers", new_customer.id, after_values=after_dict, risk_level='low')
     return new_customer
 
@@ -47,13 +47,13 @@ async def update_customer(
     db_customer_before = crud.get_customer(db, customer_id)
     if not db_customer_before:
         raise HTTPException(status_code=404, detail="Customer not found")
-    before_dict = schemas.CustomerResponse.from_orm(db_customer_before).dict()
+    before_dict = schemas.CustomerResponse.model_validate(db_customer_before).model_dump()
     db.expire(db_customer_before)
 
     updated_customer = crud.update_customer(db=db, customer_id=customer_id, customer_update=customer)
     if not updated_customer:
         raise HTTPException(status_code=404, detail="Customer not found after update.")
-    after_dict = schemas.CustomerResponse.from_orm(updated_customer).dict()
+    after_dict = schemas.CustomerResponse.model_validate(updated_customer).model_dump()
 
     await logger.log("update", "customers", customer_id, before_values=before_dict, after_values=after_dict, risk_level='low')
     return updated_customer
@@ -67,7 +67,7 @@ async def delete_customer(
     db_customer_before = crud.get_customer(db, customer_id)
     if not db_customer_before:
         raise HTTPException(status_code=404, detail="Customer not found")
-    before_dict = schemas.CustomerResponse.from_orm(db_customer_before).dict()
+    before_dict = schemas.CustomerResponse.model_validate(db_customer_before).model_dump()
 
     deleted_customer = crud.delete_customer(db, customer_id=customer_id)
     if deleted_customer is None:
