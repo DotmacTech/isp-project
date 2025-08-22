@@ -8,6 +8,9 @@ import RolesTable from './components/RolesTable';
 import PermissionsTable from './components/PermissionsTable';
 import AuditLogsTable from './components/AuditLogsTable';
 import CustomersPage from './components/CustomersPage';
+import LeadsPage from './components/LeadsPage';
+import OpportunitiesPage from './components/OpportunitiesPage';
+import TicketsPage from './components/TicketsPage';
 import DashboardContent from './components/DashboardContent';
 import LocationsPage from './components/LocationsPage';
 import InvoicesPage from './components/InvoicesPage';
@@ -15,6 +18,7 @@ import ServicesPage from './components/ServicesPage';
 import TariffsPage from './components/TariffsPage';
 import PaymentsPage from './components/PaymentsPage';
 import BillingSettingsPage from './components/BillingSettingsPage';
+import TicketConfigPage from './components/TicketConfigPage';
 
 function App() {
   return (
@@ -27,8 +31,15 @@ function App() {
       <Route path="/dashboard" element={<DashboardPage />}>
         <Route index element={<DashboardContent />} /> {/* Default content for /dashboard */}
 
+        {/* CRM Routes */}
+        <Route path="crm/leads" element={<LeadsPage />} />
+        <Route path="crm/opportunities" element={<OpportunitiesPage />} />
+
         {/* Customer Routes */}
         <Route path="customers/view" element={<CustomersPage />} />
+
+        {/* Support Routes */}
+        <Route path="support/tickets" element={<TicketsPage />} />
 
         {/* Settings Sub-routes */}
         <Route path="settings/users" element={<UserManagementPage />} />
@@ -37,6 +48,8 @@ function App() {
         <Route path="settings/audit-logs" element={<AuditLogsTable />} />
         <Route path="settings/locations" element={<LocationsPage />} />
         <Route path="settings/billing" element={<BillingSettingsPage />} />
+        <Route path="settings/ticket-config" element={<TicketConfigPage />} />
+
 
         {/* Billing Sub-routes */}
         <Route path="billing/services" element={<ServicesPage />} />

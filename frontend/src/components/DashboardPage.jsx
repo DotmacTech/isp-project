@@ -12,6 +12,7 @@ import {
   TeamOutlined,
   DollarOutlined,
   ApartmentOutlined,
+  SolutionOutlined,
   CustomerServiceOutlined,
   StockOutlined,
   FieldTimeOutlined,
@@ -89,6 +90,10 @@ function DashboardPage() {
 
   const menuItems = [
     getItem(<Link to="/dashboard">Dashboard</Link>, '/dashboard', <DashboardOutlined />),
+    getItem('CRM', 'crm', <SolutionOutlined />, [
+      getItem(<Link to="/dashboard/crm/leads">Leads</Link>, '/dashboard/crm/leads'),
+      getItem(<Link to="/dashboard/crm/opportunities">Opportunities</Link>, '/dashboard/crm/opportunities'),
+    ]),
     getItem('Customers', 'customers', <UserOutlined />, [
       getItem(<Link to="/dashboard/customers/view">View Customers</Link>, '/dashboard/customers/view'),
       getItem(<Link to="/dashboard/customers/add">Add Customer</Link>, '/dashboard/customers/add'),
@@ -115,6 +120,7 @@ function DashboardPage() {
       getItem(<Link to="/dashboard/settings/permissions">Permissions</Link>, '/dashboard/settings/permissions', <SecurityScanOutlined />),
       getItem(<Link to="/dashboard/settings/locations">Locations</Link>, '/dashboard/settings/locations', <GlobalOutlined />),
       getItem(<Link to="/dashboard/settings/billing">Billing Settings</Link>, '/dashboard/settings/billing', <DollarOutlined />),
+      getItem(<Link to="/dashboard/settings/ticket-config">Ticket Settings</Link>, '/dashboard/settings/ticket-config', <CustomerServiceOutlined />),
       getItem(<Link to="/dashboard/settings/audit-logs">Audit Logs</Link>, '/dashboard/settings/audit-logs', <FileTextOutlined />),
     ]),
   ];
