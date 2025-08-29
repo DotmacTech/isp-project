@@ -10,6 +10,11 @@ python-multipart
 celery[redis]
 pydantic[email]
 sqlalchemy-citext
+pysnmp
+pysnmp-mibs
+ping3
+psutil
+networkx
 
 pytest
 pytest-cov

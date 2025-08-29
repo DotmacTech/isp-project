@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Table, message, Spin, Typography, Button, Modal, Form, Input, Popconfirm, Row, Col } from 'antd';
-import axios from 'axios';
+import apiClient from '../api';
 
 const { Title } = Typography;
 
@@ -13,17 +13,9 @@ function LocationsPage() {
 
   const fetchData = useCallback(async () => {
     setLoading(true);
-    const token = localStorage.getItem('access_token');
-    if (!token) {
-      message.error('Authentication token not found. Please log in.');
-      setLoading(false);
-      return;
-    }
 
     try {
-      const response = await axios.get('/api/v1/locations/', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const response = await apiClient.get('/v1/locations/');
       setLocations(response.data);
     } catch (error) {
       if (error.response && error.response.status === 403) {
@@ -56,9 +48,7 @@ function LocationsPage() {
   const handleDelete = async (locationId) => {
     const token = localStorage.getItem('access_token');
     try {
-      await axios.delete(`/api/v1/locations/${locationId}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      await apiClient.delete(`/v1/locations/${locationId}`);
       message.success('Location deleted successfully');
       setLocations(currentLocations => currentLocations.filter(location => location.id !== locationId));
     } catch (error) {
@@ -76,14 +66,11 @@ function LocationsPage() {
   };
 
   const handleFormFinish = async (values) => {
-    const token = localStorage.getItem('access_token');
-    const url = editingLocation ? `/api/v1/locations/${editingLocation.id}` : '/api/v1/locations/';
+    const url = editingLocation ? `/v1/locations/${editingLocation.id}` : '/v1/locations/';
     const method = editingLocation ? 'put' : 'post';
 
     try {
-      await axios[method](url, values, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      await apiClient[method](url, values);
       message.success(`Location ${editingLocation ? 'updated' : 'added'} successfully`);
       setIsModalVisible(false);
       fetchData();

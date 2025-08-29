@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Table, message, Button, Modal, Form, Input, Select, Tag, Typography } from 'antd';
+import { Table, message, Button, Modal, Form, Input, Select, Typography, Tag } from 'antd';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import apiClient from '../api';
 
 const { Title } = Typography;
 const { Option } = Select;
@@ -19,16 +19,9 @@ function TicketsPage() {
 
   const fetchData = useCallback(async (params = {}) => {
     setLoading(true);
-    const token = localStorage.getItem('access_token');
-    if (!token) {
-      message.error('Authentication required.');
-      setLoading(false);
-      return;
-    }
 
     try {
-      const response = await axios.get('/api/v1/support/tickets/', {
-        headers: { Authorization: `Bearer ${token}` },
+      const response = await apiClient.get('/v1/support/tickets/', {
         params: {
           skip: (params.pagination.current - 1) * params.pagination.pageSize,
           limit: params.pagination.pageSize,
@@ -47,13 +40,12 @@ function TicketsPage() {
     fetchData({ pagination });
 
     const fetchSupportData = async () => {
-      const token = localStorage.getItem('access_token');
       try {
         const [customersRes, statusesRes, typesRes, groupsRes] = await Promise.all([
-          axios.get('/api/v1/customers/', { headers: { Authorization: `Bearer ${token}` }, params: { limit: 1000 } }),
-          axios.get('/api/v1/support/config/statuses/', { headers: { Authorization: `Bearer ${token}` } }),
-          axios.get('/api/v1/support/config/types/', { headers: { Authorization: `Bearer ${token}` } }),
-          axios.get('/api/v1/support/config/groups/', { headers: { Authorization: `Bearer ${token}` } }),
+          apiClient.get('/v1/customers/', { params: { limit: 1000 } }),
+          apiClient.get('/v1/support/config/statuses/'),
+          apiClient.get('/v1/support/config/types/'),
+          apiClient.get('/v1/support/config/groups/'),
         ]);
         setCustomers(customersRes.data.items);
         setTicketConfig({
@@ -80,9 +72,8 @@ function TicketsPage() {
   const handleModalCancel = () => setIsModalVisible(false);
 
   const handleFormFinish = async (values) => {
-    const token = localStorage.getItem('access_token');
     try {
-      await axios.post('/api/v1/support/tickets/', values, { headers: { Authorization: `Bearer ${token}` } });
+      await apiClient.post('/v1/support/tickets/', values);
       message.success('Ticket created successfully.');
       setIsModalVisible(false);
       fetchData({ pagination });

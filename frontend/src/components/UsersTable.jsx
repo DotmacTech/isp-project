@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Table, message, Button, Modal, Form, Input, Select, Spin, Popconfirm, Space } from 'antd';
-import axios from 'axios';
+import apiClient from '../api';
 
 function UsersTable() {
   const [users, setUsers] = useState([]);
@@ -17,17 +17,11 @@ function UsersTable() {
 
   const fetchData = useCallback(async () => { // Using useCallback to memoize the function
     setLoading(true);
-    const token = localStorage.getItem('access_token');
-    if (!token) {
-      message.error('No access token found. Please log in.');
-      setLoading(false);
-      return;
-    }
     try { // Using a single try-catch block for all fetches improves error handling
       // Fetch users and all available roles in parallel for efficiency
       const [usersRes, rolesRes] = await Promise.all([
-        axios.get('/api/v1/users/', { headers: { Authorization: `Bearer ${token}` } }),
-        axios.get('/api/v1/roles/', { headers: { Authorization: `Bearer ${token}` } })
+        apiClient.get('/v1/users/'),
+        apiClient.get('/v1/roles/')
       ]);
       
       setUsers(usersRes.data);
@@ -35,9 +29,8 @@ function UsersTable() {
 
       // Fetch assigned roles for each user
       const rolesPromises = usersRes.data.map(user =>
-        axios.get(`/api/v1/user-roles/${user.id}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        }).then(res => ({ userId: user.id, roles: res.data }))
+        apiClient.get(`/v1/user-roles/${user.id}`)
+          .then(res => ({ userId: user.id, roles: res.data }))
           .catch(() => ({ userId: user.id, roles: [] }))
       );
       const rolesResults = await Promise.all(rolesPromises);
@@ -81,8 +74,6 @@ function UsersTable() {
   };
 
   const handleFormFinish = async (values) => {
-    const token = localStorage.getItem('access_token');
-
     // When editing, if the password field is empty, don't send it in the payload
     if (editingUser && !values.password) {
       delete values.password;
@@ -91,14 +82,10 @@ function UsersTable() {
     try {
       if (editingUser) {
         // Update existing user
-        await axios.put(`/api/v1/users/${editingUser.id}`, values, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        await apiClient.put(`/v1/users/${editingUser.id}`, values);
       } else {
         // Create new user
-        await axios.post('/api/v1/users/', values, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        await apiClient.post('/v1/users/', values);
       }
       message.success(`User ${editingUser ? 'updated' : 'added'} successfully`);
       setModalVisible(false);
@@ -123,11 +110,8 @@ function UsersTable() {
   };
 
   const handleDeleteUser = async (userId) => {
-    const token = localStorage.getItem('access_token');
     try {
-      await axios.delete(`/api/v1/users/${userId}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      await apiClient.delete(`/v1/users/${userId}`);
       message.success('User deleted successfully');
       // Manually filter out the deleted user from the local state
       // to provide immediate UI feedback without a full re-fetch.
@@ -156,12 +140,10 @@ function UsersTable() {
   const handleEditRolesFinish = async (values) => {
     if (!editRolesModal.user) return;
     setAssigning(true);
-    const token = localStorage.getItem('access_token');
     try {
-      await axios.put(
-        `/api/v1/user-roles/${editRolesModal.user.id}/sync-roles`,
-        { role_ids: values.role_ids }, // Send the array of role IDs
-        { headers: { Authorization: `Bearer ${token}` } }
+      await apiClient.put(
+        `/v1/user-roles/${editRolesModal.user.id}/sync-roles`,
+        { role_ids: values.role_ids } // Send the array of role IDs
       );
 
       message.success('Roles updated successfully');

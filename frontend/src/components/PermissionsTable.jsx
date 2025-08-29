@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Table, message, Button, Modal, Form, Input, Popconfirm, Space } from 'antd';
-import axios from 'axios';
+import apiClient from '../api';
 
 function PermissionsTable() {
   const [permissions, setPermissions] = useState([]);
@@ -11,18 +11,8 @@ function PermissionsTable() {
 
   const fetchPermissions = async () => {
     setLoading(true);
-      const token = localStorage.getItem('access_token');
-      if (!token) {
-        message.error('No access token found. Please log in.');
-        setLoading(false);
-        return;
-      }
       try {
-        const response = await axios.get('/api/v1/permissions/', {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
+        const response = await apiClient.get('/v1/permissions/');
         setPermissions(response.data);
       } catch (error) {
         if (error.response && error.response.status === 401) {
@@ -53,17 +43,11 @@ function PermissionsTable() {
   };
 
   const handleFormFinish = async (values) => {
-    const token = localStorage.getItem('access_token');
-
     try {
       if (editingPermission) {
-        await axios.put(`/api/v1/permissions/${editingPermission.id}`, values, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        await apiClient.put(`/v1/permissions/${editingPermission.id}`, values);
       } else {
-        await axios.post('/api/v1/permissions/', values, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        await apiClient.post('/v1/permissions/', values);
       }
       message.success(`Permission ${editingPermission ? 'updated' : 'added'} successfully`);
       setModalVisible(false);
@@ -81,11 +65,8 @@ function PermissionsTable() {
   };
 
   const handleDeletePermission = async (permissionId) => {
-    const token = localStorage.getItem('access_token');
     try {
-      await axios.delete(`/api/v1/permissions/${permissionId}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      await apiClient.delete(`/v1/permissions/${permissionId}`);
       message.success('Permission deleted successfully');
       setPermissions(currentPermissions => currentPermissions.filter(p => p.id !== permissionId));
     } catch (error) {

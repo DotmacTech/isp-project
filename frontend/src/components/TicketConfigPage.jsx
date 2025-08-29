@@ -15,7 +15,7 @@ import {
   Row,
   Col,
 } from 'antd';
-import axios from 'axios';
+import apiClient from '../api';
 
 const { Title } = Typography;
 const { TabPane } = Tabs;
@@ -34,17 +34,11 @@ function TicketConfigPage() {
 
   const fetchData = useCallback(async () => {
     setLoading(true);
-    const token = localStorage.getItem('access_token');
-    if (!token) {
-      message.error('Authentication required.');
-      setLoading(false);
-      return;
-    }
     try {
       const [statusesRes, typesRes, groupsRes] = await Promise.all([
-        axios.get(`${API_BASE_URL}/statuses/`, { headers: { Authorization: `Bearer ${token}` } }),
-        axios.get(`${API_BASE_URL}/types/`, { headers: { Authorization: `Bearer ${token}` } }),
-        axios.get(`${API_BASE_URL}/groups/`, { headers: { Authorization: `Bearer ${token}` } }),
+        apiClient.get(`${API_BASE_URL}/statuses/`),
+        apiClient.get(`${API_BASE_URL}/types/`),
+        apiClient.get(`${API_BASE_URL}/groups/`),
       ]);
       setStatuses(statusesRes.data);
       setTypes(typesRes.data);
@@ -75,9 +69,9 @@ function TicketConfigPage() {
   };
 
   const handleDelete = async (id, type) => {
-    const token = localStorage.getItem('access_token');
+    const endpoint = type === 'status' ? 'statuses' : `${type}s`;
     try {
-      await axios.delete(`${API_BASE_URL}/${type}s/${id}`, { headers: { Authorization: `Bearer ${token}` } });
+      await apiClient.delete(`${API_BASE_URL}/${endpoint}/${id}`);
       message.success(`${type.charAt(0).toUpperCase() + type.slice(1)} deleted successfully.`);
       fetchData(); // Refresh data
     } catch (error) {
@@ -92,14 +86,15 @@ function TicketConfigPage() {
   };
 
   const handleFormFinish = async (values) => {
-    const token = localStorage.getItem('access_token');
     const method = editingRecord ? 'put' : 'post';
+    const endpoint = modalType === 'status' ? 'statuses' : `${modalType}s`;
     const url = editingRecord
-      ? `${API_BASE_URL}/${modalType}s/${editingRecord.id}`
-      : `${API_BASE_URL}/${modalType}s/`;
+      ? `${API_BASE_URL}/${endpoint}/${editingRecord.id}`
+      : `${API_BASE_URL}/${endpoint}/`;
 
     try {
-      await axiosmethod;
+      // Correctly use the method variable to call apiClient.post or apiClient.put
+      await apiClient[method](url, values);
       message.success(`${modalType.charAt(0).toUpperCase() + modalType.slice(1)} ${editingRecord ? 'updated' : 'created'} successfully.`);
       handleModalCancel();
       fetchData();

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Table, Button, Modal, Form, Checkbox, message, Spin, Typography, Row, Col, Tag, Input, Select, Popconfirm, Space } from 'antd';
-import axios from 'axios';
+import { Table, message, Button, Modal, Form, Input, Checkbox, Row, Col, Tag, Popconfirm, Space, Typography } from 'antd';
+import apiClient from '../api';
 
 const { Title } = Typography;
 
@@ -17,17 +17,11 @@ function RolesTable() {
 
   const fetchData = useCallback(async () => {
     setLoading(true);
-    const token = localStorage.getItem('access_token');
-    if (!token) {
-      message.error('Authentication token not found. Please log in.');
-      setLoading(false);
-      return;
-    }
 
     try {
       const [rolesRes, permissionsRes] = await Promise.all([
-        axios.get('/api/v1/roles/', { headers: { Authorization: `Bearer ${token}` } }),
-        axios.get('/api/v1/permissions/', { headers: { Authorization: `Bearer ${token}` } })
+        apiClient.get('/v1/roles/'),
+        apiClient.get('/v1/permissions/')
       ]);
       setRoles(rolesRes.data);
       setAllPermissions(permissionsRes.data);
@@ -86,13 +80,11 @@ function RolesTable() {
 
   const handleFormFinish = async (values) => {
     setIsSubmitting(true);
-    const token = localStorage.getItem('access_token');
 
     try {
-      await axios.put(
-        `/api/v1/roles/${editingRole.id}`,
-        { permission_codes: values.permission_codes },
-        { headers: { Authorization: `Bearer ${token}` } }
+      await apiClient.put(
+        `/v1/roles/${editingRole.id}`,
+        { permission_codes: values.permission_codes }
       );
       message.success(`Permissions for role "${editingRole.name}" updated successfully.`);
       handleModalCancel();
@@ -107,17 +99,12 @@ function RolesTable() {
 
   const handleRoleFormFinish = async (values) => {
     setIsSubmitting(true);
-    const token = localStorage.getItem('access_token');
 
     try {
       if (editingRole) {
-        await axios.put(`/api/v1/roles/${editingRole.id}`, values, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        await apiClient.put(`/v1/roles/${editingRole.id}`, values);
       } else {
-        await axios.post('/api/v1/roles/', values, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        await apiClient.post('/v1/roles/', values);
       }
       message.success(`Role ${editingRole ? 'updated' : 'created'} successfully.`);
       setIsRoleModalVisible(false);
@@ -130,11 +117,8 @@ function RolesTable() {
   };
 
   const handleDeleteRole = async (roleId) => {
-    const token = localStorage.getItem('access_token');
     try {
-      await axios.delete(`/api/v1/roles/${roleId}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      await apiClient.delete(`/v1/roles/${roleId}`);
       message.success('Role deleted successfully');
       setRoles(currentRoles => currentRoles.filter(role => role.id !== roleId));
     } catch (error) {
