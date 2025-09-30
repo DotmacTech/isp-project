@@ -2,10 +2,10 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List
 
-from ..deps import get_db
-import crud, schemas, security, audit
+from ..deps import get_db 
+from .... import crud, schemas, security, audit
 
-router = APIRouter(prefix="/locations", tags=["locations"])
+router = APIRouter()
 
 @router.post("/", response_model=schemas.LocationResponse, status_code=status.HTTP_201_CREATED, dependencies=[Depends(security.require_permission("crm.create_accounts"))])
 async def create_location(location: schemas.LocationCreate, db: Session = Depends(get_db), logger: audit.AuditLogger = Depends(audit.get_audit_logger)):

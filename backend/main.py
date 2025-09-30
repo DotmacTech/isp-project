@@ -2,12 +2,12 @@ import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-import models
-from database import engine
-from api.v1.api import api_router as api_router_v1
-from api.setup_router import setup_router
+from . import models
+from .database import engine
+from .api.v1.api import api_router as api_router_v1
+from .api.setup_router import setup_router
 
-models.Base.metadata.create_all(bind=engine)
+# models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
     title="ISP Framework API",
@@ -15,7 +15,7 @@ app = FastAPI(
     version="1.0.0"
 )
 
-origins = os.getenv("CORS_ORIGINS", "http://localhost:5173,http://10.120.120.29:5173").split(",")
+origins = os.getenv("CORS_ORIGINS", "http://localhost:5174,http://10.120.120.29:5174,http://160.119.127.237:5174").split(",")
 
 app.add_middleware(
     CORSMiddleware,

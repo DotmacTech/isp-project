@@ -1,0 +1,45 @@
+# Dockerfile for Backend Testing
+FROM python:3.11-slim
+
+# Set environment variables
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONPATH=/app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    curl \
+    postgresql-client \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set work directory
+WORKDIR /app
+
+# Install Python dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Install additional test dependencies
+RUN pip install --no-cache-dir \
+    pytest \
+    pytest-asyncio \
+    pytest-cov \
+    pytest-mock \
+    pytest-xdist \
+    bandit \
+    safety \
+    locust \
+    black \
+    isort \
+    flake8 \
+    mypy
+
+# Copy project
+COPY . .
+
+# Create directories for test reports
+RUN mkdir -p /app/test-reports /app/htmlcov
+
+# Run tests by default
+CMD ["pytest", "tests/", "-v", "--cov=.", "--cov-report=html", "--cov-report=xml"]

@@ -2,9 +2,9 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from ..deps import get_db
-import crud, schemas, security, audit
+from .... import crud, schemas, security, audit
 
-router = APIRouter(prefix="/roles", tags=["roles"])
+router = APIRouter()
 
 @router.post("/", response_model=schemas.RoleResponse, status_code=status.HTTP_201_CREATED, dependencies=[Depends(security.require_permission("system.manage_roles"))])
 async def create_role(role: schemas.RoleCreate, db: Session = Depends(get_db), logger: audit.AuditLogger = Depends(audit.get_audit_logger)):

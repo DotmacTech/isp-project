@@ -42,6 +42,19 @@ def test_create_ticket_permission_denied(test_client, crm_manager_auth_headers, 
     response = test_client.post("/api/v1/support/tickets/", json=ticket_data, headers=crm_manager_auth_headers)
     assert response.status_code == status.HTTP_403_FORBIDDEN
 
+def test_manage_config_permission_denied(test_client, crm_manager_auth_headers):
+    """
+    Tests that a user without 'support.manage_config' permission is denied access to config endpoints.
+    """
+    response = test_client.get("/api/v1/support/config/statuses/", headers=crm_manager_auth_headers)
+    assert response.status_code == status.HTTP_403_FORBIDDEN
+
+    response = test_client.get("/api/v1/support/config/types/", headers=crm_manager_auth_headers)
+    assert response.status_code == status.HTTP_403_FORBIDDEN
+
+    response = test_client.get("/api/v1/support/config/groups/", headers=crm_manager_auth_headers)
+    assert response.status_code == status.HTTP_403_FORBIDDEN
+
 # --- Ticket Access and Scoping Tests ---
 
 def test_support_manager_can_list_all_tickets(test_client, support_manager_auth_headers, test_ticket):

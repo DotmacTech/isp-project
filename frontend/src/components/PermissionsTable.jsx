@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Table, message, Button, Modal, Form, Input, Popconfirm, Space } from 'antd';
-import apiClient from '../api';
+import apiClient from '../services/api';
 
 function PermissionsTable() {
   const [permissions, setPermissions] = useState([]);
@@ -121,7 +121,7 @@ function PermissionsTable() {
         open={modalVisible}
         onCancel={handleModalCancel}
         footer={null}
-        destroyOnClose
+        destroyOnHidden
       >
         <Form form={form} layout="vertical" onFinish={handleFormFinish}>
           <Form.Item name="code" label="Code" rules={[{ required: true }]}>

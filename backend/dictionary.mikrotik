@@ -1,0 +1,34 @@
+#
+# dictionary.mikrotik
+#
+# Mikrotik RouterOS RADIUS dictionary
+#
+# http://www.mikrotik.com
+#
+VENDOR          Mikrotik        14988
+
+BEGIN-VENDOR    Mikrotik
+
+ATTRIBUTE       Mikrotik-Recv-Limit             1       integer
+ATTRIBUTE       Mikrotik-Xmit-Limit             2       integer
+ATTRIBUTE       Mikrotik-Group                  3       string
+ATTRIBUTE       Mikrotik-Wireless-Forward       4       integer
+ATTRIBUTE       Mikrotik-Wireless-Skip-Dot1x    5       integer
+ATTRIBUTE       Mikrotik-Wireless-Enc-Algo      6       integer
+ATTRIBUTE       Mikrotik-Wireless-Enc-Key       7       string
+ATTRIBUTE       Mikrotik-Rate-Limit             8       string
+ATTRIBUTE       Mikrotik-Realm                  9       string
+ATTRIBUTE       Mikrotik-Host-IP                10      ipaddr
+ATTRIBUTE       Mikrotik-Mark-Id                11      string
+ATTRIBUTE       Mikrotik-Advertise-Url          12      string
+ATTRIBUTE       Mikrotik-Advertise-Interval     13      integer
+ATTRIBUTE       Mikrotik-Recv-Limit-Gigawords   14      integer
+ATTRIBUTE       Mikrotik-Xmit-Limit-Gigawords   15      integer
+ATTRIBUTE       Mikrotik-Wireless-VLANID        16      integer
+ATTRIBUTE       Mikrotik-Wireless-VLANID-Type   17      integer
+ATTRIBUTE       Mikrotik-Wireless-Minsignal     18      integer
+ATTRIBUTE       Mikrotik-Wireless-Maxsignal     19      integer
+ATTRIBUTE       Mikrotik-Wireless-Comment       20      string
+ATTRIBUTE       Mikrotik-Delegated-IPv6-Pool    21      string
+
+END-VENDOR      Mikrotik

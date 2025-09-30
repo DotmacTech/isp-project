@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Table, message, Button, Modal, Form, Input, Select, Spin, Popconfirm, Space } from 'antd';
-import apiClient from '../api';
+import apiClient from '../services/api';
 
 function UsersTable() {
   const [users, setUsers] = useState([]);
@@ -244,7 +244,7 @@ function UsersTable() {
         open={modalVisible}
         onCancel={handleModalCancel}
         footer={null}
-        destroyOnClose
+        destroyOnHidden
       >
         <Form form={form} layout="vertical" onFinish={handleFormFinish}>
           <Form.Item name="email" label="Email" rules={[{ required: true, type: 'email' }]}>
@@ -269,7 +269,7 @@ function UsersTable() {
         open={editRolesModal.visible}
         onCancel={handleEditRolesCancel}
         footer={null}
-        destroyOnClose
+        destroyOnHidden
       >
         <Form form={editRolesForm} layout="vertical" onFinish={handleEditRolesFinish}>
           <Form.Item name="role_ids" label="Roles" rules={[{ required: true }]}>

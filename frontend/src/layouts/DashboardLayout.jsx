@@ -1,14 +1,15 @@
 import React from 'react';
 import { Layout } from 'antd';
+import { Outlet } from 'react-router-dom';
 import TopBar from './TopBar';
 import Sidebar from './Sidebar';
 
 const { Header, Sider, Content } = Layout;
 
-const DashboardLayout = ({ children }) => {
+const DashboardLayout = () => {
     return (
         <Layout style={{ minHeight: '100vh' }}>
-            <Sider width={250}>
+            <Sider width={250} theme="dark">
                 <Sidebar />
             </Sider>
             <Layout>
@@ -17,7 +18,7 @@ const DashboardLayout = ({ children }) => {
                 </Header>
                 <Content style={{ margin: '24px 16px 0' }}>
                     <div style={{ padding: 24, minHeight: 360, background: '#fff' }}>
-                        {children}
+                        <Outlet />
                     </div>
                 </Content>
             </Layout>

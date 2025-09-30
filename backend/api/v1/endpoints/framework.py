@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from ..deps import get_db
-import crud, schemas, security
+from .... import crud, schemas, security
 
 # Framework Permissions (Renamed endpoints)
 router = APIRouter(prefix="/framework-permissions", tags=["framework-permissions"])

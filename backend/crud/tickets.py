@@ -1,7 +1,7 @@
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy.sql import func
 from typing import Optional, List
-import models, schemas
+from .. import models, schemas
 
 def get_ticket(db: Session, ticket_id: int) -> Optional[models.Ticket]:
     """
@@ -88,3 +88,29 @@ def create_ticket_message(db: Session, ticket: models.Ticket, message_data: sche
     db.commit()
     db.refresh(db_message)
     return db_message
+
+def update_ticket(db: Session, ticket_id: int, ticket_update: schemas.TicketUpdate) -> Optional[models.Ticket]:
+    """
+    Updates an existing ticket and its `updated_at` timestamp.
+    """
+    db_ticket = get_ticket(db, ticket_id)
+    if db_ticket:
+        update_data = ticket_update.model_dump(exclude_unset=True)
+        for key, value in update_data.items():
+            setattr(db_ticket, key, value)
+        
+        db_ticket.updated_at = func.now()
+        
+        db.commit()
+        db.refresh(db_ticket)
+    return db_ticket
+
+def delete_ticket(db: Session, ticket_id: int) -> Optional[models.Ticket]:
+    """
+    Deletes a ticket from the database.
+    """
+    db_ticket = get_ticket(db, ticket_id)
+    if db_ticket:
+        db.delete(db_ticket)
+        db.commit()
+    return db_ticket

@@ -1,0 +1,16 @@
+[Unit]
+Description=ISP Project Celery Beat Scheduler
+After=network.target redis.service
+
+[Service]
+Type=simple
+User=dev2
+Group=dev2
+WorkingDirectory=/home/dev2/isp-project
+ExecStart=/home/dev2/isp-project/backend/env/bin/celery -A backend.celery_app.app beat --loglevel=info
+
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

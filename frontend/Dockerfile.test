@@ -1,0 +1,38 @@
+# Dockerfile for Frontend Testing
+FROM node:20-alpine
+
+# Set working directory
+WORKDIR /app
+
+# Install dependencies for running tests in Docker
+RUN apk add --no-cache \
+    chromium \
+    nss \
+    freetype \
+    freetype-dev \
+    harfbuzz \
+    ca-certificates \
+    ttf-freefont
+
+# Set environment variables for Puppeteer
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
+ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
+
+# Copy package files
+COPY package*.json ./
+
+# Install dependencies
+RUN npm ci --only=production=false
+
+# Copy project files
+COPY . .
+
+# Create test reports directory
+RUN mkdir -p /app/test-reports /app/coverage
+
+# Set permissions
+RUN chown -R node:node /app
+USER node
+
+# Default command runs all tests
+CMD ["npm", "run", "test:ci"]

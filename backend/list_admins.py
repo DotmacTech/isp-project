@@ -2,9 +2,9 @@
 import os
 import sys
 from sqlalchemy.orm import Session
-from database import SessionLocal
-import crud
-import models
+from .database import SessionLocal
+from . import crud
+from . import models
 
 # Add the backend directory to the Python path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))

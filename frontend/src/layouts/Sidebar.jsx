@@ -6,114 +6,144 @@ import {
     UserOutlined,
     TeamOutlined,
     DollarOutlined,
-    ApartmentOutlined,
     SettingOutlined,
     CustomerServiceOutlined,
     LineChartOutlined,
     FieldTimeOutlined,
     StockOutlined,
     KeyOutlined,
+    GatewayOutlined,
+    ClusterOutlined,
+    TagOutlined,
 } from '@ant-design/icons';
 
 const Sidebar = () => {
     const items = [
         {
-            key: '1',
+            key: 'dashboard',
             icon: <DashboardOutlined />,
             label: <Link to="/dashboard">Dashboard</Link>,
         },
         {
-            key: 'sub1',
+            key: 'crm',
+            icon: <TagOutlined />,
+            label: 'CRM',
+            children: [
+                { key: 'crm1', label: <Link to="/dashboard/crm/leads">Leads</Link> },
+                { key: 'crm2', label: <Link to="/dashboard/crm/opportunities">Opportunities</Link> },
+            ],
+        },
+        {
+            key: 'customers',
             icon: <UserOutlined />,
             label: 'Customers',
             children: [
-                { key: '2', label: <Link to="/dashboard/customers">View Customers</Link> },
-                { key: '3', label: <Link to="/dashboard/customers/add">Add Customer</Link> },
-                { key: '4', label: <Link to="/dashboard/sessions">Manage Sessions</Link> },
+                { key: 'cust1', label: <Link to="/dashboard/customers">View Customers</Link> },
+                { key: 'cust3', label: <Link to="/dashboard/sessions">Active Sessions</Link> },
             ],
         },
         {
-            key: 'sub2',
-            icon: <TeamOutlined />,
-            label: 'Resellers',
-            children: [
-                { key: '5', label: <Link to="/dashboard/resellers">View Resellers</Link> },
-                { key: '6', label: <Link to="/dashboard/resellers/add">Add Reseller</Link> },
-            ],
-        },
-        {
-            key: 'sub3',
+            key: 'billing',
             icon: <DollarOutlined />,
             label: 'Billing',
             children: [
-                { key: '7', label: <Link to="/dashboard/invoices">Invoices</Link> },
-                { key: '8', label: <Link to="/dashboard/tariffs">Tariffs & Plans</Link> },
-                { key: '9', label: <Link to="/dashboard/payments">Payments</Link> },
+                { key: 'bill9', label: <Link to="/dashboard/billing/system-overview">System Overview</Link> },
+                { key: 'bill2', label: <Link to="/dashboard/billing/invoices">Invoices</Link> },
+                { key: 'bill3', label: <Link to="/dashboard/billing/services">Services</Link> },
+                { key: 'bill4', label: <Link to="/dashboard/billing/tariffs">Tariffs & Plans</Link> },
+                { key: 'bill5', label: <Link to="/dashboard/billing/payments">Payments</Link> },
+                { key: 'bill6', label: <Link to="/dashboard/billing/analytics">Analytics</Link> },
+                { key: 'bill7', label: <Link to="/dashboard/billing/cycles">Billing Cycles</Link> },
+                { key: 'bill8', label: <Link to="/dashboard/billing/reports">Reports</Link> },
+                
+                { key: 'bill10', label: <Link to="/dashboard/billing/credit-notes">Credit Notes</Link> },
+                { key: 'bill11', label: <Link to="/dashboard/billing/customer-config">Customer Config</Link> },
+                { key: 'bill12', label: <Link to="/dashboard/billing/proforma-invoices">Proforma Invoices</Link> },
+                { key: 'bill13', label: <Link to="/dashboard/billing/transactions">Transactions</Link> },
+                { key: 'bill14', label: <Link to="/dashboard/billing/usage-tracking">Usage Tracking</Link> },
             ],
         },
         {
-            key: 'sub4',
-            icon: <ApartmentOutlined />,
-            label: 'Network',
+            key: 'network_management',
+            icon: <GatewayOutlined />,
+            label: 'Network Management',
             children: [
-                { key: '10', label: <Link to="/dashboard/devices">Monitor Devices</Link> },
-                { key: '11', label: <Link to="/dashboard/ips">Manage IPs</Link> },
-                { key: '12', label: <Link to="/dashboard/radius">RADIUS Sessions</Link> },
+                { key: 'nm1', label: <Link to="/dashboard/network/analytics">Dashboard</Link> },
+                { key: 'nm2', label: <Link to="/dashboard/network/incidents">Incidents</Link> },
+                { key: 'nm3', label: <Link to="/dashboard/network/alerts">Alerts</Link> },
+                { key: 'nm4', label: <Link to="/dashboard/network/topology">Topology</Link> },
+                { key: 'nm5', label: <Link to="/dashboard/network/monitoring-devices">Monitoring Devices</Link> },
+                { key: 'nm6', label: <Link to="/dashboard/network/snmp-profiles">SNMP Profiles</Link> },
+                { key: 'nm7', label: <Link to="/dashboard/network/data">Monitoring Data</Link> },
+                { key: 'nm8', label: <Link to="/dashboard/network/settings">Settings</Link> },
+            ]
+        },
+        {
+            key: 'network_infra',
+            icon: <ClusterOutlined />,
+            label: 'Network Infrastructure',
+            children: [
+                { key: 'ni1', label: <Link to="/dashboard/network/sites">Sites</Link> },
+                { key: 'ni2', label: <Link to="/dashboard/network/routers">Routers</Link> },
+                { key: 'ni6', label: <Link to="/dashboard/network/config">Network Configuration</Link> },
+                { key: 'ni7', label: <Link to="/dashboard/network/categories">Network Categories</Link> },
+                { key: 'ni3', label: <Link to="/dashboard/network/ipam/ipv4">IPv4</Link> },
+                { key: 'ni4', label: <Link to="/dashboard/network/ipam/ipv6">IPv6</Link> },
+                { key: 'ni5', label: <Link to="/dashboard/freeradius">RADIUS</Link> },
             ],
         },
         {
-            key: 'sub5',
+            key: 'support',
             icon: <CustomerServiceOutlined />,
             label: 'Support',
             children: [
-                { key: '13', label: <Link to="/dashboard/tickets">Tickets</Link> },
-                { key: '14', label: <Link to="/dashboard/knowledgebase">Knowledge Base</Link> },
+                { key: 'sup1', label: <Link to="/dashboard/support/tickets">Tickets</Link> },
+                { key: 'sup2', label: <Link to="/dashboard/knowledgebase">Knowledge Base</Link> },
             ],
         },
         {
-            key: 'sub6',
+            key: 'resellers',
+            icon: <TeamOutlined />,
+            label: 'Resellers',
+            children: [
+                { key: 'res1', label: <Link to="/dashboard/resellers">View Resellers</Link> },
+                { key: 'res2', label: <Link to="/dashboard/resellers">Add Reseller</Link> },
+            ],
+        },
+        {
+            key: 'inventory',
             icon: <StockOutlined />,
             label: 'Inventory',
             children: [
-                { key: '15', label: <Link to="/dashboard/equipment">Equipment</Link> },
-                { key: '16', label: <Link to="/dashboard/stock">Stock Management</Link> },
+                { key: 'inv1', label: <Link to="/dashboard/equipment">Equipment</Link> },
+                { key: 'inv2', label: <Link to="/dashboard/stock">Stock Management</Link> },
             ],
         },
         {
-            key: 'sub7',
-            icon: <FieldTimeOutlined />,
-            label: 'Field Operations',
-            children: [
-                { key: '17', label: <Link to="/dashboard/jobs">Assign Jobs</Link> },
-                { key: '18', label: <Link to="/dashboard/technicians">Technician Tracking</Link> },
-            ],
-        },
-        {
-            key: 'sub8',
+            key: 'reports',
             icon: <LineChartOutlined />,
             label: 'Reports',
             children: [
-                { key: '19', label: <Link to="/dashboard/usage-reports">Usage Reports</Link> },
-                { key: '20', label: <Link to="/dashboard/financial-reports">Financial Reports</Link> },
+                { key: 'rep1', label: <Link to="/dashboard/usage-reports">Usage Reports</Link> },
+                { key: 'rep2', label: <Link to="/dashboard/financial-reports">Financial Reports</Link> },
             ],
         },
         {
-            key: 'sub9',
+            key: 'settings',
             icon: <SettingOutlined />,
             label: 'Settings',
             children: [
-                { key: '21', icon: <UserOutlined />, label: <Link to="/dashboard/users">User Management</Link> },
-                { key: '22', icon: <KeyOutlined />, label: <Link to="/dashboard/roles">Roles & Permissions</Link> },
-                { key: '23', label: <Link to="/dashboard/system-config">System Config</Link> },
+                { key: 'set1', icon: <UserOutlined />, label: <Link to="/dashboard/settings/users">User Management</Link> },
+                { key: 'set2', icon: <KeyOutlined />, label: <Link to="/dashboard/settings/roles">Roles</Link> },
+                { key: 'set3', icon: <KeyOutlined />, label: <Link to="/dashboard/settings/permissions">Permissions</Link> },
+                { key: 'set4', label: <Link to="/dashboard/settings/audit-logs">Audit Logs</Link> },
+                { key: 'set5', label: <Link to="/dashboard/settings/billing">Billing Settings</Link> },
             ],
         },
     ];
 
     return (
         <div>
-            <div style={{ height: '32px', margin: '16px', background: 'rgba(255, 255, 255, 0.3)' }}>
-                {/* Logo placeholder */}
-            </div>
             <Menu theme="dark" mode="inline" defaultSelectedKeys={['1']} items={items} />
         </div>
     );

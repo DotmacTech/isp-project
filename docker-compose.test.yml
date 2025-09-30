@@ -1,0 +1,123 @@
+version: '3.8'
+
+services:
+  # Test Database
+  test-db:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: isp_test
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: testpassword
+    ports:
+      - "5433:5432"
+    volumes:
+      - test_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Test Redis
+  test-redis:
+    image: redis:7-alpine
+    ports:
+      - "6380:6379"
+    command: redis-server --requirepass testpassword
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Backend Test Environment
+  backend-test:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.test
+    depends_on:
+      test-db:
+        condition: service_healthy
+      test-redis:
+        condition: service_healthy
+    environment:
+      - DATABASE_URL=postgresql://postgres:testpassword@test-db:5432/isp_test
+      - REDIS_URL=redis://:testpassword@test-redis:6379/0
+      - SECRET_KEY=test-secret-key-for-docker
+      - ENVIRONMENT=test
+    volumes:
+      - ./backend:/app
+      - backend_test_cache:/app/.pytest_cache
+    command: |
+      sh -c "
+        echo 'Waiting for services...' &&
+        sleep 5 &&
+        alembic upgrade head &&
+        pytest tests/ -v --cov=. --cov-report=html --cov-report=xml
+      "
+
+  # Frontend Test Environment  
+  frontend-test:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.test
+    volumes:
+      - ./frontend:/app
+      - frontend_node_modules:/app/node_modules
+    command: |
+      sh -c "
+        npm ci &&
+        npm run lint &&
+        npm run test:ci &&
+        npm run build &&
+        npm run build-storybook
+      "
+
+  # Integration Test Environment
+  integration-test:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.test
+    depends_on:
+      test-db:
+        condition: service_healthy
+      test-redis:
+        condition: service_healthy
+    environment:
+      - DATABASE_URL=postgresql://postgres:testpassword@test-db:5432/isp_test
+      - REDIS_URL=redis://:testpassword@test-redis:6379/0
+      - SECRET_KEY=test-secret-key-for-integration
+      - ENVIRONMENT=test
+    volumes:
+      - ./backend:/app
+    ports:
+      - "8001:8000"
+    command: |
+      sh -c "
+        echo 'Starting integration test environment...' &&
+        alembic upgrade head &&
+        uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+      "
+
+  # Performance Test Environment
+  performance-test:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.test
+    depends_on:
+      integration-test:
+        condition: service_started
+    volumes:
+      - ./backend:/app
+    command: |
+      sh -c "
+        echo 'Waiting for backend to start...' &&
+        sleep 10 &&
+        pip install locust &&
+        locust --host=http://integration-test:8000 --users 10 --spawn-rate 2 --run-time 60s --headless
+      "
+
+volumes:
+  test_db_data:
+  backend_test_cache:
+  frontend_node_modules:

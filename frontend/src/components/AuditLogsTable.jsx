@@ -1,69 +1,10 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React from 'react';
 import { Table, message, Spin, Typography, Modal, Descriptions, Tag, Button } from 'antd';
-import apiClient from '../api';
+import { EyeOutlined } from '@ant-design/icons';
 
 const { Title, Text } = Typography;
 
-function AuditLogsTable() {
-  const [logs, setLogs] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [pagination, setPagination] = useState({
-    current: 1,
-    pageSize: 15,
-    total: 0,
-  });
-  const [isModalVisible, setIsModalVisible] = useState(false);
-  const [selectedLog, setSelectedLog] = useState(null);
-
-  const fetchData = useCallback(async (params = {}) => {
-    setLoading(true);
-
-    try {
-      const response = await apiClient.get('/v1/audit-logs/', {
-        params: {
-          skip: (params.pagination.current - 1) * params.pagination.pageSize,
-          limit: params.pagination.pageSize,
-        },
-      });
-      setLogs(response.data.items);
-      setPagination(prev => ({
-        ...prev,
-        total: response.data.total,
-      }));
-    } catch (error) {
-      if (error.response && error.response.status === 403) {
-        message.error('You do not have permission to view audit logs.');
-      } else {
-        message.error('Failed to fetch audit logs.');
-      }
-      console.error('Error fetching data:', error);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  // Destructure pagination values to use as stable, primitive dependencies in useEffect
-  const { current, pageSize } = pagination;
-
-  useEffect(() => {
-    fetchData({ pagination: { current, pageSize } });
-  }, [fetchData, current, pageSize]);
-
-  const handleTableChange = (newPagination) => {
-    // Only update the parts of pagination that antd gives us on change
-    setPagination(prev => ({ ...prev, current: newPagination.current, pageSize: newPagination.pageSize }));
-  };
-
-  const showDetailsModal = (record) => {
-    setSelectedLog(record);
-    setIsModalVisible(true);
-  };
-
-  const handleModalCancel = () => {
-    setIsModalVisible(false);
-    setSelectedLog(null);
-  };
-
+const AuditLogsTable = ({ auditLogs, loading, pagination, onTableChange, onViewDetails, isModalVisible, selectedLog, onModalCancel }) => {
   const renderChangedFields = (changedFields) => {
     if (!changedFields || Object.keys(changedFields).length === 0) {
       return <Text type="secondary">No fields were changed.</Text>;
@@ -106,7 +47,7 @@ function AuditLogsTable() {
       title: 'Details',
       key: 'details',
       render: (_, record) => (
-        <Button size="small" onClick={() => showDetailsModal(record)} disabled={!record.changed_fields}>
+        <Button size="small" icon={<EyeOutlined />} onClick={() => onViewDetails(record)} disabled={!record.changed_fields}>
           View Changes
         </Button>
       ),
@@ -114,22 +55,21 @@ function AuditLogsTable() {
   ];
 
   return (
-    <div>
-      <Title level={2}>System Audit Logs</Title>
+    <>
       <Table
-        dataSource={logs}
+        dataSource={auditLogs}
         columns={columns}
         rowKey="id"
         loading={loading}
         pagination={pagination}
-        onChange={handleTableChange}
+        onChange={onTableChange}
         style={{ marginTop: 20 }}
       />
       {selectedLog && (
         <Modal
           title={`Details for Log #${selectedLog.id}`}
           open={isModalVisible}
-          onCancel={handleModalCancel}
+          onCancel={onModalCancel}
           footer={null}
           width={800}
         >
@@ -146,8 +86,8 @@ function AuditLogsTable() {
           {renderChangedFields(selectedLog.changed_fields)}
         </Modal>
       )}
-    </div>
+    </>
   );
-}
+};
 
 export default AuditLogsTable;

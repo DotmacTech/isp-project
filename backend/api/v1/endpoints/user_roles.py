@@ -2,10 +2,10 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import Optional, List
 
-from ..deps import get_db
-import crud, models, schemas, security
+from ..deps import get_db 
+from .... import crud, models, schemas, security
 
-router = APIRouter(prefix="/user-roles", tags=["user-roles"])
+router = APIRouter()
 
 @router.post("/", response_model=schemas.UserRoleResponse, status_code=status.HTTP_201_CREATED, dependencies=[Depends(security.require_permission("system.manage_users"))])
 def assign_role_to_user(user_role: schemas.UserRoleCreate, db: Session = Depends(get_db)):

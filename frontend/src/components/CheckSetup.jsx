@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import LoginPage from './LoginPage';
-import SetupPage from './SetupPage';
+import LoginPage from '../pages/operations/LoginPage';
+import SetupPage from '../pages/operations/SetupPage';
 
 function CheckSetup() {
     const [setupComplete, setSetupComplete] = useState(null);

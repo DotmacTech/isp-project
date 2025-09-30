@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
-from database import SessionLocal
-import crud, schemas, models
+from .database import SessionLocal
+from . import crud, schemas, models
 
 def seed_permissions_and_roles(db: Session):
     # Seed Permissions
@@ -25,6 +25,7 @@ def seed_permissions_and_roles(db: Session):
         {"code": "support.create_tickets", "description": "Create support tickets", "module": "support"},
         {"code": "support.edit_tickets", "description": "Edit support tickets (comments, status)", "module": "support"},
         {"code": "support.assign_tickets", "description": "Assign tickets to agents", "module": "support"},
+        {"code": "support.manage_config", "description": "Manage ticket statuses, types, and groups", "module": "support"},
         {"code": "support.manage_knowledge", "description": "Manage knowledge base", "module": "support"},
 
         # Billing
@@ -34,6 +35,20 @@ def seed_permissions_and_roles(db: Session):
         {"code": "billing.process_payments", "description": "Record/process payments & refunds", "module": "billing"},
         {"code": "billing.manage_tariffs", "description": "Create & update tariff plans", "module": "billing"},
         {"code": "billing.view_financials", "description": "View financial reports", "module": "billing"},
+        {"code": "billing.manage_cycles", "description": "Manage billing cycles", "module": "billing"},
+        {"code": "billing.view_cycles", "description": "View billing cycles", "module": "billing"},
+        {"code": "billing.manage_customer_config", "description": "Manage customer billing configurations", "module": "billing"},
+        {"code": "billing.view_customer_config", "description": "View customer billing configurations", "module": "billing"},
+        {"code": "billing.run_billing", "description": "Manually trigger billing runs", "module": "billing"},
+        {"code": "billing.run_dunning", "description": "Manually trigger dunning process", "module": "billing"},
+        {"code": "billing.manage_usage", "description": "Manage usage tracking records", "module": "billing"},
+        {"code": "billing.view_usage", "description": "View usage tracking records", "module": "billing"},
+        {"code": "billing.view_events", "description": "View billing audit events", "module": "billing"},
+        {"code": "billing.create_events", "description": "Create billing audit events", "module": "billing"},
+        {"code": "billing.view_analytics", "description": "View billing analytics and reports", "module": "billing"},
+        {"code": "billing.view_system_health", "description": "View billing system health status", "module": "billing"},
+        {"code": "billing.view_taxes", "description": "View tax configurations", "module": "billing"},
+        {"code": "billing.view_customer_balance", "description": "View customer credit balance", "module": "billing"},
 
         # Network
         {"code": "network.view_devices", "description": "View network devices and topology", "module": "network"},
@@ -98,7 +113,7 @@ def seed_permissions_and_roles(db: Session):
         ]},
         {"name": "Support Manager", "description": "Oversee support and SLA", "scope": schemas.RoleScope.system, "permissions": [
             "support.view_tickets","support.create_tickets","support.edit_tickets",
-            "support.assign_tickets","support.manage_knowledge",
+            "support.assign_tickets","support.manage_knowledge","support.manage_config",
             "crm.view_accounts","reports.view_usage"
         ]},
         {"name": "Support Agent", "description": "Handle support tickets", "scope": schemas.RoleScope.system, "permissions": [

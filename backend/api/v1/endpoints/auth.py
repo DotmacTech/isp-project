@@ -4,9 +4,9 @@ from sqlalchemy.orm import Session
 from datetime import timedelta
 
 from ..deps import get_db
-import schemas, security
+from .... import schemas, security
 
-router = APIRouter(tags=["Authentication"])
+router = APIRouter()
 
 @router.post("/token", response_model=schemas.Token)
 async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
@@ -22,4 +22,3 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
         data={"sub": str(user.id)}, expires_delta=access_token_expires
     )
     return {"access_token": access_token, "token_type": "bearer"}
-

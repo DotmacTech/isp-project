@@ -163,3 +163,36 @@ def test_create_payment_and_reactivate_api(test_client, super_admin_auth_headers
     assert refreshed_invoice.status == 'paid'
     assert refreshed_service.status == 'active'
     assert refreshed_customer.status == 'active'
+
+def test_read_payment_gateways_api(test_client, db_session, super_admin_auth_headers, billing_manager_auth_headers):
+    """
+    Test reading payment gateways with different permissions and filters to prevent regressions.
+    """
+    # 1. Create an inactive payment method for testing purposes
+    inactive_method_data = schemas.PaymentMethodCreate(name="Inactive Test Gateway", is_active=False)
+    inactive_method = crud.create_payment_method(db_session, inactive_method_data)
+    assert not inactive_method.is_active, "Test setup failed: Inactive method should be inactive."
+
+    # 2. Test as a billing manager (should only see active gateways)
+    response_active = test_client.get("/api/v1/billing/payment-gateways/", headers=billing_manager_auth_headers)
+    assert response_active.status_code == 200, response_active.text
+    active_gateways = response_active.json()
+    assert isinstance(active_gateways, list)
+    
+    # Ensure the inactive gateway is NOT present in the default response
+    assert inactive_method.name not in [gw['name'] for gw in active_gateways]
+    # Ensure all returned gateways are indeed active
+    for gw in active_gateways:
+        assert gw['is_active'] is True
+
+    # 3. Test as a billing manager trying to access all gateways (should be forbidden)
+    response_all_fail = test_client.get("/api/v1/billing/payment-gateways/?is_active=false", headers=billing_manager_auth_headers)
+    assert response_all_fail.status_code == 403, "A user without 'billing.manage_tariffs' should be forbidden from viewing inactive gateways."
+
+    # 4. Test as a super admin (should see all gateways when requested)
+    response_all_success = test_client.get("/api/v1/billing/payment-gateways/?is_active=false", headers=super_admin_auth_headers)
+    assert response_all_success.status_code == 200, response_all_success.text
+    all_gateways = response_all_success.json()
+    assert isinstance(all_gateways, list)
+    # Ensure the inactive gateway IS present in the response for super admin
+    assert inactive_method.name in [gw['name'] for gw in all_gateways]

@@ -1,0 +1,16 @@
+[Unit]
+Description=ISP Framework Web API Service (Uvicorn)
+After=network.target
+
+[Service]
+Type=simple
+User=dev2
+Group=dev2
+WorkingDirectory=/home/dev2/isp-project
+ExecStart=/home/dev2/isp-project/backend/env/bin/uvicorn backend.main:app --host 0.0.0.0 --port 8000
+
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

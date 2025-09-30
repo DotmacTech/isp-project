@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-from database import SessionLocal
+from ...database import SessionLocal
 
 # Dependency
 def get_db():
@@ -8,4 +8,3 @@ def get_db():
         yield db
     finally:
         db.close()
-

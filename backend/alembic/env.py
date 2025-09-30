@@ -1,6 +1,8 @@
 from logging.config import fileConfig
 import os
 import sys
+from dotenv import load_dotenv
+
 
 from sqlalchemy import engine_from_config
 from sqlalchemy import pool
@@ -9,21 +11,29 @@ from alembic import context
 
 
 
-
-
-# Add the project root directory to sys.path
-sys.path.insert(0, os.path.abspath("/home/dev2/isp-project"))
-
-# import all models for autogenerate
-from backend.database import Base
-from backend import models
-
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
 
-# Read DB URL from environment variable
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://isp_user:%23Dotmac246@localhost:5432/isp-project")
+# Load .env file from the parent directory (backend/)
+# This allows DATABASE_URL to be loaded from the same .env file as the main app
+dotenv_path = os.path.join(os.path.dirname(__file__), '..', '.env')
+if os.path.exists(dotenv_path):
+    load_dotenv(dotenv_path)
+
+
+# Set the database URL from environment variable, falling back to alembic.ini
+# This makes environment variables the primary source of configuration.
+db_url = os.getenv("DATABASE_URL")
+if db_url:
+    # Handle URL encoding properly to avoid ConfigParser interpolation issues
+    config.set_main_option("sqlalchemy.url", db_url.replace('%', '%%'))
+
+# import all models for autogenerate
+# The 'prepend_sys_path = .' in alembic.ini ensures that the backend directory
+# is in the path, so we can import directly.
+from database import Base
+import models
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
@@ -31,9 +41,7 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 # add your model's MetaData object here
-# for 'autogenerate' support
-# from myapp import mymodel
-# target_metadata = mymodel.Base.metadata
+
 target_metadata = Base.metadata
 
 # other values from the config, defined by the needs of env.py,
@@ -78,7 +86,7 @@ def run_migrations_online() -> None:
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
-        url=DATABASE_URL # Pass the URL directly here
+        # url=DATABASE_URL # Pass the URL directly here
     )
 
     with connectable.connect() as connection:

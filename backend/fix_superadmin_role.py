@@ -5,9 +5,9 @@ from sqlalchemy.orm import Session
 # Add project root to path to allow imports
 sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
 
-from database import SessionLocal
-import crud
-import schemas
+from .database import SessionLocal
+from . import crud
+from . import schemas
 
 def get_db():
     db = SessionLocal()

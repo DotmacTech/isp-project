@@ -5,10 +5,11 @@ from datetime import datetime
 from decimal import Decimal
 import json
 
-import crud
-import models
-import schemas
-from security import get_current_user, get_db
+from . import crud
+from . import models
+from . import schemas
+from .security import get_current_user
+from .api.v1.deps import get_db
 
 def json_serial(obj):
     """JSON serializer for objects not serializable by default json code"""
@@ -47,7 +48,8 @@ class AuditLogger:
         record_id: Optional[int] = None,
         before_values: Optional[dict] = None,
         after_values: Optional[dict] = None,
-        risk_level: str = 'low'
+        risk_level: str = 'low',
+        business_context: Optional[str] = None
     ):
         changed_fields = get_changed_fields(before_values or {}, after_values or {}) if before_values or after_values else None
 
@@ -72,6 +74,7 @@ class AuditLogger:
             request_url=str(self.request.url),
             request_method=self.request.method,
             risk_level=risk_level,
+            business_context=business_context,
         )
         crud.create_audit_log(self.db, log_data)
 

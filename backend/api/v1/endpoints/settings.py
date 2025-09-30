@@ -2,9 +2,9 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from ..deps import get_db
-import crud, schemas, security
+from .... import crud, schemas, security
 
-router = APIRouter(prefix="/settings", tags=["settings"])
+router = APIRouter()
 
 @router.post("/", response_model=schemas.Setting, status_code=status.HTTP_201_CREATED, dependencies=[Depends(security.require_permission("system.configure_security"))])
 def create_setting(setting: schemas.SettingCreate, db: Session = Depends(get_db)):

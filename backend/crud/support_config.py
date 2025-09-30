@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
 from typing import Optional, List
-import models, schemas
+from .. import models, schemas
 
 from sqlalchemy.exc import IntegrityError
 
@@ -69,8 +69,12 @@ def update_ticket_group(db: Session, group_id: int, group_update: schemas.Ticket
 def delete_ticket_group(db: Session, group_id: int) -> Optional[models.TicketGroup]:
     db_group = get_ticket_group(db, group_id)
     if db_group:
-        db.delete(db_group)
-        db.commit()
+        try:
+            db.delete(db_group)
+            db.commit()
+        except IntegrityError:
+            db.rollback()
+            raise IntegrityError("Cannot delete group, it is currently in use by one or more tickets.", orig=None, params=None)
     return db_group
 
 # --- Ticket Type CRUD ---
@@ -101,6 +105,10 @@ def update_ticket_type(db: Session, type_id: int, type_update: schemas.TicketTyp
 def delete_ticket_type(db: Session, type_id: int) -> Optional[models.TicketType]:
     db_type = get_ticket_type(db, type_id)
     if db_type:
-        db.delete(db_type)
-        db.commit()
+        try:
+            db.delete(db_type)
+            db.commit()
+        except IntegrityError:
+            db.rollback()
+            raise IntegrityError("Cannot delete type, it is currently in use by one or more tickets.", orig=None, params=None)
     return db_type

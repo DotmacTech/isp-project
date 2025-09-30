@@ -2,6 +2,7 @@ import React from 'react';
 import { Avatar, Badge, Space, Dropdown } from 'antd';
 import { BellOutlined, UserOutlined, LogoutOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
+import GlobalSearchBar from '../components/GlobalSearchBar';
 
 const TopBar = () => {
     const navigate = useNavigate();
@@ -24,6 +25,7 @@ const TopBar = () => {
 
     return (
         <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', paddingRight: '24px', height: '100%' }}>
+            <GlobalSearchBar />
             <Space size="large">
                 <Badge count={5}>
                     <BellOutlined style={{ fontSize: '20px' }} />

@@ -1,13 +1,16 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Table, message, Button, Modal, Form, Input, Checkbox, Row, Col, Tag, Popconfirm, Space, Typography } from 'antd';
-import apiClient from '../api';
+import { Table, message, Button, Modal, Form, Input, Checkbox, Row, Col, Tag, Popconfirm, Space, Typography, Select, Alert, Spin } from 'antd';
+import apiClient from '../services/api';
 
 const { Title } = Typography;
 
 function RolesTable() {
+  console.log('RolesTable component is rendering');
+  
   const [roles, setRoles] = useState([]);
   const [allPermissions, setAllPermissions] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [isRoleModalVisible, setIsRoleModalVisible] = useState(false);
   const [editingRole, setEditingRole] = useState(null);
@@ -16,28 +19,36 @@ function RolesTable() {
   const [roleForm] = Form.useForm();
 
   const fetchData = useCallback(async () => {
+    console.log('RolesTable: fetchData called');
     setLoading(true);
+    setError(null);
 
     try {
+      console.log('Fetching roles and permissions...');
       const [rolesRes, permissionsRes] = await Promise.all([
         apiClient.get('/v1/roles/'),
         apiClient.get('/v1/permissions/')
       ]);
+      console.log('Roles data:', rolesRes.data);
+      console.log('Permissions data:', permissionsRes.data);
       setRoles(rolesRes.data);
       setAllPermissions(permissionsRes.data);
     } catch (error) {
-      if (error.response && error.response.status === 403) {
-        message.error('You do not have permission to manage roles.');
-      } else {
-        message.error('Failed to fetch roles and permissions.');
-      }
       console.error('Error fetching data:', error);
+      const errorMessage = error.response?.data?.detail || error.message || 'Failed to fetch roles and permissions';
+      setError(errorMessage);
+      if (error.response && error.response.status === 403) {
+        message.error('You do not have permission to manage roles. Please contact your system administrator.');
+      } else {
+        message.error('Failed to fetch roles and permissions: ' + errorMessage);
+      }
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
+    console.log('RolesTable: useEffect called');
     fetchData();
   }, [fetchData]);
 
@@ -90,7 +101,8 @@ function RolesTable() {
       handleModalCancel();
       fetchData(); // Refresh data to show updated permissions
     } catch (error) {
-      message.error('Failed to update permissions.');
+      const errorMessage = error.response?.data?.detail || 'Failed to update permissions';
+      message.error('Failed to update permissions: ' + errorMessage);
       console.error('Error updating role permissions:', error);
     } finally {
       setIsSubmitting(false);
@@ -110,7 +122,8 @@ function RolesTable() {
       setIsRoleModalVisible(false);
       fetchData();
     } catch (error) {
-      message.error(error.response?.data?.detail || `Failed to ${editingRole ? 'update' : 'create'} role.`);
+      const errorMessage = error.response?.data?.detail || `Failed to ${editingRole ? 'update' : 'create'} role`;
+      message.error(errorMessage);
     } finally {
       setIsSubmitting(false);
     }
@@ -122,7 +135,8 @@ function RolesTable() {
       message.success('Role deleted successfully');
       setRoles(currentRoles => currentRoles.filter(role => role.id !== roleId));
     } catch (error) {
-      message.error('Failed to delete role.');
+      const errorMessage = error.response?.data?.detail || 'Failed to delete role';
+      message.error('Failed to delete role: ' + errorMessage);
     }
   };
 
@@ -165,12 +179,21 @@ function RolesTable() {
     <div>
       <Title level={2}>Role Management</Title>
       <Button type="primary" onClick={handleAddRole} style={{ marginBottom: 16 }}>Add Role</Button>
-      <Table
-        dataSource={roles}
-        columns={columns}
-        rowKey="id"
-        loading={loading}
-      />
+      {error && <Alert message={error} type="error" showIcon style={{ marginBottom: 16 }} />}
+      {loading ? (
+        <div style={{ textAlign: 'center', padding: '50px' }}>
+          <Spin size="large" />
+          <p>Loading roles and permissions...</p>
+        </div>
+      ) : (
+        <Table
+          dataSource={roles}
+          columns={columns}
+          rowKey="id"
+          locale={{ emptyText: error ? 'Error loading data: ' + error : 'No roles found' }}
+          pagination={{ pageSize: 10 }}
+        />
+      )}
       {editingRole && (
         <Modal
           title={`Edit Permissions for "${editingRole.name}"`}
@@ -185,7 +208,7 @@ function RolesTable() {
             </Button>,
           ]}
           width={800}
-          destroyOnClose
+          destroyOnHidden
         >
           <Form form={form} layout="vertical" onFinish={handleFormFinish} initialValues={{ permission_codes: editingRole.permissions.map(p => p.code) }}>
             <Form.Item name="permission_codes">
@@ -214,16 +237,16 @@ function RolesTable() {
         open={isRoleModalVisible}
         onCancel={() => setIsRoleModalVisible(false)}
         footer={null}
-        destroyOnClose
+        destroyOnHidden
       >
         <Form form={roleForm} layout="vertical" onFinish={handleRoleFormFinish}>
-          <Form.Item name="name" label="Role Name" rules={[{ required: true }]}>
+          <Form.Item name="name" label="Role Name" rules={[{ required: true, message: 'Please input role name!' }]}>
             <Input />
           </Form.Item>
           <Form.Item name="description" label="Description">
             <Input.TextArea />
           </Form.Item>
-          <Form.Item name="scope" label="Scope" rules={[{ required: true }]} initialValue="system">
+          <Form.Item name="scope" label="Scope" rules={[{ required: true, message: 'Please select scope!' }]} initialValue="system">
             <Select>
               <Select.Option value="system">System</Select.Option>
               <Select.Option value="customer">Customer</Select.Option>
