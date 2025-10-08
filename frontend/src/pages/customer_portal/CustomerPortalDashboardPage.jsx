@@ -17,6 +17,7 @@ const CustomerDashboardPage = () => {
         // Get customer ID from token
         const token = localStorage.getItem('customer_access_token');
         if (!token) {
+          
           message.error('You must be logged in to view this page');
           return;
         }
