@@ -7,7 +7,10 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any
 from decimal import Decimal
 
-from pysnmp.hlapi import *
+from pysnmp.hlapi.v3arch import (
+    SnmpEngine, CommunityData, UdpTransportTarget, ContextData, ObjectType,
+    ObjectIdentity, get_cmd as getCmd, next_cmd as nextCmd, bulk_cmd as bulkCmd
+)
 from pysnmp.error import PySnmpError
 from sqlalchemy.orm import Session
 
@@ -42,7 +45,7 @@ class SNMPService:
         """Discover a network device via SNMP."""
         try:
             auth = CommunityData(community)
-            transport = UdpTransportTarget((ip_address, 161), timeout=5, retries=2)
+            transport = await UdpTransportTarget.create((ip_address, 161), retries=2)
             
             device_info = {
                 'ip_address': ip_address,
@@ -50,31 +53,32 @@ class SNMPService:
                 'discovery_time': datetime.utcnow()
             }
             
-            for (errorIndication, errorStatus, errorIndex, varBinds) in getCmd(
+            iterator = await getCmd(
                 SnmpEngine(), auth, transport, ContextData(),
                 ObjectType(ObjectIdentity(STANDARD_OIDS['sysDescr'])),
-                ObjectType(ObjectIdentity(STANDARD_OIDS['sysName']))):
+                ObjectType(ObjectIdentity(STANDARD_OIDS['sysName'])))
                 
-                if errorIndication:
-                    self.logger.error(f"SNMP error for {ip_address}: {errorIndication}")
-                    break
-                    
-                if errorStatus:
-                    self.logger.error(f"SNMP error for {ip_address}: {errorStatus}")
-                    break
                 
-                for varBind in varBinds:
-                    oid_str = str(varBind[0])
-                    value = str(varBind[1])
-                    
-                    if oid_str == STANDARD_OIDS['sysDescr']:
-                        device_info['description'] = value
-                    elif oid_str == STANDARD_OIDS['sysName']:
-                        device_info['name'] = value
+            errorIndication, errorStatus, errorIndex, varBinds = iterator
+
+            if errorIndication:
+                self.logger.error(f"SNMP error for {ip_address}: {errorIndication}")
                 
-                device_info['accessible'] = True
-                break
+            if errorStatus:
+                self.logger.error(f"SNMP error for {ip_address}: {errorStatus}")
+        
+            for varBind in varBinds:
+                oid_str = str(varBind[0])
+                value = str(varBind[1])
                 
+                if oid_str == STANDARD_OIDS['sysDescr']:
+                    device_info['description'] = value
+                elif oid_str == STANDARD_OIDS['sysName']:
+                    device_info['name'] = value
+            
+            device_info['accessible'] = True
+            
+            
             return device_info
             
         except Exception as e:
@@ -109,12 +113,14 @@ class SNMPService:
             collected_data = []
             timestamp = datetime.utcnow()
             
-            for oid_name, oid_value in oids_to_monitor.items():
+            object_types = [ObjectType(ObjectIdentity(oid)) for oid in oids_to_monitor.values()]
+
+            if object_types:
                 try:
-                    for (errorIndication, errorStatus, errorIndex, varBinds) in getCmd(
+                    iterator = getCmd(
                         SnmpEngine(), auth, transport, ContextData(),
-                        ObjectType(ObjectIdentity(oid_value))):
-                        
+                        *object_types)
+                    for (errorIndication, errorStatus, errorIndex, varBinds) in await iterator:
                         if errorIndication or errorStatus:
                             data = SNMPMonitoringData(
                                 profile_id=profile_id,
@@ -126,24 +132,24 @@ class SNMPService:
                                 error_message=str(errorIndication or errorStatus)
                             )
                         else:
-                            value = str(varBinds[0][1])
-                            data = SNMPMonitoringData(
-                                profile_id=profile_id,
-                                oid=oid_value,
-                                value=value,
-                                value_type=self._determine_value_type(value),
-                                timestamp=timestamp,
-                                status='success'
-                            )
-                            
-                            # Check thresholds
-                            await self._check_thresholds(profile, oid_name, value, device)
-                        
-                        collected_data.append(data)
-                        break
+                            for varBind in varBinds:
+                                oid_value = str(varBind[0])
+                                value = str(varBind[1])
+                                oid_name = next((name for name, oid in oids_to_monitor.items() if oid == oid_value), oid_value)
+
+                                data = SNMPMonitoringData(
+                                    profile_id=profile_id,
+                                    oid=oid_value,
+                                    value=value,
+                                    value_type=self._determine_value_type(value),
+                                    timestamp=timestamp,
+                                    status='success'
+                                )
+                                collected_data.append(data)
+                                await self._check_thresholds(profile, oid_name, value, device)
                         
                 except Exception as e:
-                    self.logger.error(f"Error collecting OID {oid_name}: {str(e)}")
+                    self.logger.error(f"Error collecting OIDs for profile {profile_id}: {str(e)}")
             
             if collected_data:
                 self.db.add_all(collected_data)

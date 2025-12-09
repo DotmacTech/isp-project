@@ -16,7 +16,12 @@ from ipaddress import ip_network, ip_address
 import networkx as nx
 
 from sqlalchemy.orm import Session
-from pysnmp.hlapi import *
+from pysnmp.hlapi.v3arch import (
+    SnmpEngine, CommunityData, UdpTransportTarget, ContextData, ObjectType,
+    ObjectIdentity, get_cmd as getCmd, next_cmd as nextCmd
+)
+from pysnmp.error import PySnmpError
+
 
 from ..models import NetworkTopology, NetworkConnection, MonitoringDevice
 from ..schemas import NetworkTopologyAnalysis
@@ -96,7 +101,7 @@ class TopologyDiscoveryService:
             await self._store_topology_data()
             
             # Phase 5: Generate topology analysis
-            analysis = self._analyze_topology()
+            analysis = await self._analyze_topology()
             
             discovery_result = {
                 'discovery_timestamp': datetime.utcnow(),
@@ -169,7 +174,7 @@ class TopologyDiscoveryService:
         
         try:
             auth = CommunityData(community)
-            transport = UdpTransportTarget((device_ip, 161), timeout=5)
+            transport = await UdpTransportTarget.create((device_ip, 161))
             
             # Additional OIDs for enhanced info
             additional_oids = [
@@ -179,14 +184,14 @@ class TopologyDiscoveryService:
             ]
             
             for oid, field_name in additional_oids:
+                object_type = ObjectType(ObjectIdentity(oid))
                 try:
-                    for (errorIndication, errorStatus, errorIndex, varBinds) in getCmd(
-                        SnmpEngine(), auth, transport, ContextData(),
-                        ObjectType(ObjectIdentity(oid))):
-                        
+                    iterator = await getCmd(SnmpEngine(), auth, transport, ContextData(), object_type)
+                    for (errorIndication, errorStatus, errorIndex, varBinds) in await iterator:
                         if not errorIndication and not errorStatus:
-                            enhanced_info[field_name] = str(varBinds[0][1])
-                        break
+                            if varBinds:
+                                enhanced_info[field_name] = str(varBinds[0][1])
+                            break
                         
                 except Exception as e:
                     self.logger.debug(f"Could not get {field_name} for {device_ip}: {str(e)}")
@@ -220,17 +225,17 @@ class TopologyDiscoveryService:
         
         try:
             auth = CommunityData(community)
-            transport = UdpTransportTarget((device_ip, 161), timeout=5)
+            transport = await UdpTransportTarget.create((device_ip, 161), retries=2)
             
             # Walk CDP table
-            for (errorIndication, errorStatus, errorIndex, varBinds) in nextCmd(
+            iterator = nextCmd(
                 SnmpEngine(), auth, transport, ContextData(),
                 ObjectType(ObjectIdentity(CDP_OIDS['cdpCacheDeviceId'])),
-                lexicographicMode=False, maxRows=50):
-                
+                lexicographicMode=False, maxRows=50)
+            async for (errorIndication, errorStatus, errorIndex, varBinds) in iterator:
                 if errorIndication or errorStatus:
                     break
-                    
+                
                 for varBind in varBinds:
                     device_id = str(varBind[1])
                     if device_id and device_id != 'No Such Instance currently exists at this OID':
@@ -255,17 +260,17 @@ class TopologyDiscoveryService:
         
         try:
             auth = CommunityData(community)
-            transport = UdpTransportTarget((device_ip, 161), timeout=5)
+            transport = await UdpTransportTarget.create((device_ip, 161), retries=2)
             
             # Walk LLDP table
-            for (errorIndication, errorStatus, errorIndex, varBinds) in nextCmd(
+            iterator = nextCmd(
                 SnmpEngine(), auth, transport, ContextData(),
                 ObjectType(ObjectIdentity(LLDP_OIDS['lldpRemSysName'])),
-                lexicographicMode=False, maxRows=50):
-                
+                lexicographicMode=False, maxRows=50)
+            async for (errorIndication, errorStatus, errorIndex, varBinds) in iterator:
                 if errorIndication or errorStatus:
                     break
-                    
+                
                 for varBind in varBinds:
                     neighbor_name = str(varBind[1])
                     if neighbor_name and neighbor_name != 'No Such Instance currently exists at this OID':
@@ -285,7 +290,7 @@ class TopologyDiscoveryService:
         """Get detailed CDP neighbor information."""
         try:
             auth = CommunityData(community)
-            transport = UdpTransportTarget((device_ip, 161), timeout=3)
+            transport = await UdpTransportTarget.create((device_ip, 161), retries=2)
             
             # Extract index from OID for additional queries
             index = base_oid.split('.')[-2:]  # Get last two components
